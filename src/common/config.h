@@ -1,0 +1,9 @@
+#pragma once
+
+#define MAX_FWD_RULES 256
+#define MAX_CONNECTIONS 1000000
+
+#define MIN_PORT 500
+#define MAX_PORT 520
+
+#define ENABLE_RULE_LOGGING

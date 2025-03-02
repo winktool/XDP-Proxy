@@ -1,76 +1,211 @@
 CC = clang
-LLC = llc
 
-BUILD_DIR := build
-SRC_DIR := src
-LIBBPF_DIR := libbpf
+LIBXDP_STATIC ?= 1
+
+# Top-level directories.
+BUILD_DIR = build
+SRC_DIR = src
+MODULES_DIR = modules
+
+# Common directories.
+COMMON_DIR = $(SRC_DIR)/common
+ETC_DIR = /etc/xdpfwd
+
+# Project source directories.
+LOADER_DIR = $(SRC_DIR)/loader
+XDP_DIR = $(SRC_DIR)/xdp
+
+RULE_ADD_DIR = $(SRC_DIR)/rule_add
+RULE_DEL_DIR = $(SRC_DIR)/rule_del
+
+# Additional build directories.
+BUILD_LOADER_DIR = $(BUILD_DIR)/loader
+BUILD_XDP_DIR = $(BUILD_DIR)/xdp
+BUILD_RULE_ADD_DIR = $(BUILD_DIR)/rule_add
+BUILD_RULE_DEL_DIR = $(BUILD_DIR)/rule_del
+
+# XDP Tools directories.
+XDP_TOOLS_DIR = $(MODULES_DIR)/xdp-tools
+XDP_TOOLS_HEADERS = $(XDP_TOOLS_DIR)/headers
+
+# LibXDP and LibBPF directories.
+LIBXDP_DIR = $(XDP_TOOLS_DIR)/lib/libxdp
+LIBBPF_DIR = $(XDP_TOOLS_DIR)/lib/libbpf
 
 LIBBPF_SRC = $(LIBBPF_DIR)/src
 
-LIBBPF_OBJS = $(LIBBPF_SRC)/staticobjs/bpf_prog_linfo.o $(LIBBPF_SRC)/staticobjs/bpf.o $(LIBBPF_SRC)/staticobjs/btf_dump.o
-LIBBPF_OBJS += $(LIBBPF_SRC)/staticobjs/btf.o $(LIBBPF_SRC)/staticobjs/hashmap.o $(LIBBPF_SRC)/staticobjs/libbpf_errno.o
-LIBBPF_OBJS += $(LIBBPF_SRC)/staticobjs/libbpf_probes.o $(LIBBPF_SRC)/staticobjs/libbpf.o $(LIBBPF_SRC)/staticobjs/netlink.o
-LIBBPF_OBJS += $(LIBBPF_SRC)/staticobjs/nlattr.o $(LIBBPF_SRC)/staticobjs/str_error.o
-LIBBPF_OBJS += $(LIBBPF_SRC)/staticobjs/xsk.o
+# LibBPF objects.
+LIBBPF_OBJS = $(addprefix $(LIBBPF_SRC)/staticobjs/, $(notdir $(wildcard $(LIBBPF_SRC)/staticobjs/*.o)))
 
-LOADER_SRC := xdpfwd.c
-LOADER_OUT := xdpfwd
-LOADER_FLAGS := -lelf -lz -lconfig
+# LibXDP objects.
+# To Do: Figure out why static objects produces errors relating to unreferenced functions with dispatcher.
+# Note: Not sure why shared objects are acting like static objects here where we can link while building and then don't require them at runtime, etc.
+LIBXDP_OBJS = $(addprefix $(LIBXDP_DIR)/sharedobjs/, $(notdir $(wildcard $(LIBXDP_DIR)/sharedobjs/*.o)))
 
-ADD_SRC := xdpfwd-add.c
-ADD_OUT := xdpfwd-add
+# Loader directories.
+LOADER_SRC = prog.c
+LOADER_OUT = xdpfw
 
-DEL_SRC := xdpfwd-del.c
-DEL_OUT := xdpfwd-del
+LOADER_UTILS_DIR = $(LOADER_DIR)/utils
 
-CMD_LINE_SRC := cmdline.c
-CMD_LINE_OUT := cmdline.o
+# Loader utils.
+LOADER_UTILS_CONFIG_SRC = config.c
+LOADER_UTILS_CONFIG_OBJ = config.o
 
-CONFIG_SRC := config.c
-CONFIG_OUT := config.o
+LOADER_UTILS_CLI_SRC = cli.c
+LOADER_UTILS_CLI_OBJ = cli.o
 
-UTILS_SRC := utils.c
-UTILS_OUT := utils.o
+LOADER_UTILS_XDP_SRC = xdp.c
+LOADER_UTILS_XDP_OBJ = xdp.o
 
-XDP_PROG_SRC := xdp_prog.c
-XDP_PROG_LL := xdp_prog.ll
-XDP_PROG_OUT := xdp_prog.o
+LOADER_UTILS_LOGGING_SRC = logging.c
+LOADER_UTILS_LOGGING_OBJ = logging.o
 
-GLOBAL_OBJS := $(BUILD_DIR)/$(CONFIG_OUT) $(BUILD_DIR)/$(CMD_LINE_OUT) $(BUILD_DIR)/$(UTILS_OUT)
-GLOBAL_FLAGS := -O2
+LOADER_UTILS_STATS_SRC = stats.c
+LOADER_UTILS_STATS_OBJ = stats.o
 
-all: utils common loader xdp_add xdp_del xdp_prog
-mk_build:
-	mkdir -p build/
-loader: libbpf mk_build common utils
-	$(CC) -I$(LIBBPF_SRC) $(LOADER_FLAGS) $(GLOBAL_FLAGS) -o $(BUILD_DIR)/$(LOADER_OUT) $(LIBBPF_OBJS) $(GLOBAL_OBJS) $(SRC_DIR)/$(LOADER_SRC)
-xdp_add: libbpf mk_build common utils
-	$(CC) -I$(LIBBPF_SRC) $(LOADER_FLAGS) $(GLOBAL_FLAGS) -o $(BUILD_DIR)/$(ADD_OUT) $(LIBBPF_OBJS) $(GLOBAL_OBJS) $(SRC_DIR)/$(ADD_SRC)
-xdp_del: libbpf mk_build common utils
-	$(CC) -I$(LIBBPF_SRC) $(LOADER_FLAGS) $(GLOBAL_FLAGS) -o $(BUILD_DIR)/$(DEL_OUT) $(LIBBPF_OBJS) $(GLOBAL_OBJS) $(SRC_DIR)/$(DEL_SRC)
-xdp_prog: mk_build
-	$(CC) -I$(LIBBPF_SRC) -D__BPF__ -Wall -Wextra $(GLOBAL_FLAGS) -emit-llvm -c -o $(BUILD_DIR)/$(XDP_PROG_LL) $(SRC_DIR)/$(XDP_PROG_SRC) 
-	$(LLC) -march=bpf -filetype=obj -o $(BUILD_DIR)/$(XDP_PROG_OUT) $(BUILD_DIR)/$(XDP_PROG_LL)
-libbpf:
-	$(MAKE) -j $(nproc) -C $(LIBBPF_SRC)
-common: mk_build
-	$(CC) $(GLOBAL_FLAGS) -c -o $(BUILD_DIR)/$(CMD_LINE_OUT) $(SRC_DIR)/$(CMD_LINE_SRC)
-	$(CC) $(GLOBAL_FLAGS) -c -o $(BUILD_DIR)/$(CONFIG_OUT) $(SRC_DIR)/$(CONFIG_SRC)
-utils: libbpf mk_build
-	$(CC) -I$(LIBBPF_SRC) $(GLOBAL_FLAGS) -c -o $(BUILD_DIR)/$(UTILS_OUT) $(SRC_DIR)/$(UTILS_SRC)
-clean:
-	$(MAKE) -j $(nproc) -C $(LIBBPF_SRC) clean
-	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.ll
-	rm -f $(BUILD_DIR)/$(LOADER_OUT)
-	rm -f $(BUILD_DIR)/$(ADD_OUT)
-	rm -f $(BUILD_DIR)/$(DEL_OUT)
+LOADER_UTILS_HELPERS_SRC = helpers.c
+LOADER_UTILS_HELPERS_OBJ = helpers.o
+
+# Loader objects.
+LOADER_OBJS = $(BUILD_LOADER_DIR)/$(LOADER_UTILS_CONFIG_OBJ) $(BUILD_LOADER_DIR)/$(LOADER_UTILS_CLI_OBJ) $(BUILD_LOADER_DIR)/$(LOADER_UTILS_XDP_OBJ) $(BUILD_LOADER_DIR)/$(LOADER_UTILS_LOGGING_OBJ) $(BUILD_LOADER_DIR)/$(LOADER_UTILS_STATS_OBJ) $(BUILD_LOADER_DIR)/$(LOADER_UTILS_HELPERS_OBJ)
+
+ifeq ($(LIBXDP_STATIC), 1)
+	LOADER_OBJS := $(LIBBPF_OBJS) $(LIBXDP_OBJS) $(LOADER_OBJS)
+endif
+
+# XDP directories.
+XDP_SRC = prog.c
+XDP_OBJ = xdp_prog.o
+
+# Rule common.
+RULE_OBJS = $(BUILD_LOADER_DIR)/$(LOADER_UTILS_CONFIG_OBJ) $(BUILD_LOADER_DIR)/$(LOADER_UTILS_XDP_OBJ) $(BUILD_LOADER_DIR)/$(LOADER_UTILS_LOGGING_OBJ) $(BUILD_LOADER_DIR)/$(LOADER_UTILS_HELPERS_OBJ)
+
+ifeq ($(LIBXDP_STATIC), 1)
+	RULE_OBJS := $(LIBBPF_OBJS) $(LIBXDP_OBJS) $(RULE_OBJS)
+endif
+
+# Rule add.
+RULE_ADD_SRC = prog.c
+RULE_ADD_OUT = xdpfw-add
+
+RULE_ADD_UTILS_DIR = $(RULE_ADD_DIR)/utils
+
+# Rule add utils.
+RULE_ADD_UTILS_CLI_SRC = cli.c
+RULE_ADD_UTILS_CLI_OBJ = cli.o
+
+RULE_ADD_OBJS = $(BUILD_RULE_ADD_DIR)/$(RULE_ADD_UTILS_CLI_OBJ)
+
+# Rule delete.
+RULE_DEL_SRC = prog.c
+RULE_DEL_OUT = xdpfw-del
+
+RULE_DEL_UTILS_DIR = $(RULE_DEL_DIR)/utils
+
+# Rule delete utils.
+RULE_DEL_UTILS_CLI_SRC = cli.c
+RULE_DEL_UTILS_CLI_OBJ = cli.o
+
+RULE_DEL_OBJS = $(BUILD_RULE_DEL_DIR)/$(RULE_DEL_UTILS_CLI_OBJ)
+
+# Includes.
+INCS = -I $(SRC_DIR) -I /usr/include -I /usr/local/include
+
+ifeq ($(LIBXDP_STATIC), 1)
+	INCS += -I $(XDP_TOOLS_HEADERS) -I $(LIBBPF_SRC)
+endif
+
+# Flags.
+FLAGS = -O2 -g
+FLAGS_LOADER = -lconfig -lelf -lz
+
+ifeq ($(LIBXDP_STATIC), 1)
+	FLAGS += -D__LIBXDP_STATIC__
+else
+	FLAGS_LOADER += -lbpf -lxdp
+endif
+
+# All chains.
+all: loader xdp rule_add rule_del
+
+# Loader program.
+loader: loader_utils
+	$(CC) $(INCS) $(FLAGS) $(FLAGS_LOADER) -o $(BUILD_LOADER_DIR)/$(LOADER_OUT) $(LOADER_OBJS) $(LOADER_DIR)/$(LOADER_SRC)
+
+loader_utils: loader_utils_config loader_utils_cli loader_utils_helpers loader_utils_xdp loader_utils_logging loader_utils_stats
+
+loader_utils_config:
+	$(CC) $(INCS) $(FLAGS) -c -o $(BUILD_LOADER_DIR)/$(LOADER_UTILS_CONFIG_OBJ) $(LOADER_UTILS_DIR)/$(LOADER_UTILS_CONFIG_SRC)
+
+loader_utils_cli:
+	$(CC) $(INCS) $(FLAGS) -c -o $(BUILD_LOADER_DIR)/$(LOADER_UTILS_CLI_OBJ) $(LOADER_UTILS_DIR)/$(LOADER_UTILS_CLI_SRC)
+
+loader_utils_xdp:
+	$(CC) $(INCS) $(FLAGS) -c -o $(BUILD_LOADER_DIR)/$(LOADER_UTILS_XDP_OBJ) $(LOADER_UTILS_DIR)/$(LOADER_UTILS_XDP_SRC)
+
+loader_utils_logging:
+	$(CC) $(INCS) $(FLAGS) -c -o $(BUILD_LOADER_DIR)/$(LOADER_UTILS_LOGGING_OBJ) $(LOADER_UTILS_DIR)/$(LOADER_UTILS_LOGGING_SRC)
+
+loader_utils_stats:
+	$(CC) $(INCS) $(FLAGS) -c -o $(BUILD_LOADER_DIR)/$(LOADER_UTILS_STATS_OBJ) $(LOADER_UTILS_DIR)/$(LOADER_UTILS_STATS_SRC)
+
+loader_utils_helpers:
+	$(CC) $(INCS) $(FLAGS) -c -o $(BUILD_LOADER_DIR)/$(LOADER_UTILS_HELPERS_OBJ) $(LOADER_UTILS_DIR)/$(LOADER_UTILS_HELPERS_SRC)
+
+# XDP program.
+xdp:
+	$(CC) $(INCS) $(FLAGS) -target bpf -c -o $(BUILD_XDP_DIR)/$(XDP_OBJ) $(XDP_DIR)/$(XDP_SRC)
+
+# Rule add.
+rule_add: loader_utils rule_add_utils
+	$(CC) $(INCS) $(FLAGS) $(FLAGS_LOADER) -o $(BUILD_RULE_ADD_DIR)/$(RULE_ADD_OUT) $(RULE_OBJS) $(RULE_ADD_OBJS) $(RULE_ADD_DIR)/$(RULE_ADD_SRC)
+
+rule_add_utils: rule_add_utils_cli
+
+rule_add_utils_cli:
+	$(CC) $(INCS) $(FLAGS) -c -o $(BUILD_RULE_ADD_DIR)/$(RULE_ADD_UTILS_CLI_OBJ) $(RULE_ADD_UTILS_DIR)/$(RULE_ADD_UTILS_CLI_SRC)
+
+# Rule delete.
+rule_del: loader_utils rule_del_utils
+	$(CC) $(INCS) $(FLAGS) $(FLAGS_LOADER) -o $(BUILD_RULE_DEL_DIR)/$(RULE_DEL_OUT) $(RULE_OBJS) $(RULE_DEL_OBJS) $(RULE_DEL_DIR)/$(RULE_DEL_SRC)
+
+rule_del_utils: rule_del_utils_cli
+
+rule_del_utils_cli:
+	$(CC) $(INCS) $(FLAGS) -c -o $(BUILD_RULE_DEL_DIR)/$(RULE_DEL_UTILS_CLI_OBJ) $(RULE_DEL_UTILS_DIR)/$(RULE_DEL_UTILS_CLI_SRC)
+
+# LibXDP chain. We need to install objects here since our program relies on installed object files and such.
+libxdp:
+	$(MAKE) -C $(XDP_TOOLS_DIR) libxdp
+
+libxdp_install:
+	$(MAKE) -C $(LIBBPF_SRC) install
+	$(MAKE) -C $(LIBXDP_DIR) install
+
+libxdp_clean:
+	$(MAKE) -C $(XDP_TOOLS_DIR) clean
+	$(MAKE) -C $(LIBBPF_SRC) clean
+
 install:
-	mkdir -p /etc/xdpfwd
-	cp -n xdpfwd.conf.example /etc/xdpfwd/xdpfwd.conf
-	cp $(BUILD_DIR)/$(XDP_PROG_OUT) /etc/xdpfwd/$(XDP_PROG_OUT)
-	cp $(BUILD_DIR)/$(LOADER_OUT) /usr/bin/$(LOADER_OUT)
-	cp $(BUILD_DIR)/$(ADD_OUT) /usr/bin/$(ADD_OUT)
-	cp $(BUILD_DIR)/$(DEL_OUT) /usr/bin/$(DEL_OUT)
-	cp -n xdpfwd.service /etc/systemd/system/
-.PHONY: libbpf
+	mkdir -p $(ETC_DIR)
+	
+	cp -n xdpfwd.conf.example $(ETC_DIR)/xdpfwd.conf
+
+	cp -n other/xdpfwd.service /etc/systemd/system/
+
+	cp -f $(BUILD_LOADER_DIR)/$(LOADER_OUT) /usr/bin
+	cp -f $(BUILD_RULE_ADD_DIR)/$(RULE_ADD_OUT) /usr/bin
+	cp -f $(BUILD_RULE_DEL_DIR)/$(RULE_DEL_OUT) /usr/bin
+
+	cp -f $(BUILD_XDP_DIR)/$(XDP_OBJ) $(ETC_DIR)
+
+clean:	
+	find $(BUILD_DIR) -type f ! -name ".*" -exec rm -f {} +
+	find $(BUILD_LOADER_DIR) -type f ! -name ".*" -exec rm -f {} +
+	find $(BUILD_XDP_DIR) -type f ! -name ".*" -exec rm -f {} +
+	find $(BUILD_RULE_ADD_DIR) -type f ! -name ".*" -exec rm -f {} +
+	find $(BUILD_RULE_DEL_DIR) -type f ! -name ".*" -exec rm -f {} +
+
+.PHONY: all libxdp
 .DEFAULT: all
