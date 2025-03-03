@@ -1,5 +1,5 @@
 verbose = 5;
-log_file = "/var/log/xdpfw.log";
+log_file = "/var/log/xdpfwd.log";
 interface = "enp1s0";
 pin_maps = true;
 update_time = 0;
