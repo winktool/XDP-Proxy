@@ -590,7 +590,7 @@ void set_fwd_rule_defaults(fwd_rule_cfg_t* rule)
 void set_cfg_defaults(config__t* cfg)
 {
     cfg->verbose = 2;
-    cfg->log_file = strdup("/var/log/xdpfw.log");
+    cfg->log_file = strdup("/var/log/xdpfwd.log");
     cfg->update_time = 0;
     cfg->interface = NULL;
     cfg->pin_maps = 1;
