@@ -8,7 +8,7 @@ on:
 
 jobs:
   reuse_build:
-    uses: gamemann/XDP-Forward/.github/workflows/build.yml@master
+    uses: gamemann/XDP-Proxy/.github/workflows/build.yml@master
   run:
     needs: reuse_build
     runs-on: ubuntu-latest
