@@ -14,15 +14,15 @@ struct cli
     int help;
     int save;
 
-    int enable;
+    int enabled;
     int log;
 
     const char* bind_ip;
     int bind_port;
-    const char* bind_protocol;
+    const char* protocol;
 
     const char* dst_ip;
     int dst_port;
 } typedef cli_t;
 
-void ParseCli(cli_t* cmd, int argc, char* argv[]);
+void parse_cli(cli_t* cmd, int argc, char* argv[]);

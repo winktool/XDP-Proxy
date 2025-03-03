@@ -11,7 +11,7 @@
  * 
  * @return void
  */
-static void LogMsgRaw(int req_lvl, int cur_lvl, int error, const char* log_path, const char* msg, va_list args)
+static void log_msgRaw(int req_lvl, int cur_lvl, int error, const char* log_path, const char* msg, va_list args)
 {
     if (cur_lvl < req_lvl)
     {
@@ -86,7 +86,7 @@ static void LogMsgRaw(int req_lvl, int cur_lvl, int error, const char* log_path,
 }
 
 /**
- * Prints a log message using LogMsgRaw().
+ * Prints a log message using log_msgRaw().
  * 
  * @param cfg A pointer to the config structure.
  * @param req_lvl The required level for this message.
@@ -95,12 +95,12 @@ static void LogMsgRaw(int req_lvl, int cur_lvl, int error, const char* log_path,
  * 
  * @return void
  */
-void LogMsg(config__t* cfg, int req_lvl, int error, const char* msg, ...)
+void log_msg(config__t* cfg, int req_lvl, int error, const char* msg, ...)
 {
     va_list args;
     va_start(args, msg);
 
-    LogMsgRaw(req_lvl, cfg->verbose, error, (const char*)cfg->log_file, msg, args);
+    log_msgRaw(req_lvl, cfg->verbose, error, (const char*)cfg->log_file, msg, args);
 
     va_end(args);
 }
@@ -112,7 +112,7 @@ void LogMsg(config__t* cfg, int req_lvl, int error, const char* msg, ...)
  * 
  * @return void
  */
-void PollRulesRb(struct ring_buffer* rb)
+void poll_fwd_rules_rb(struct ring_buffer* rb)
 {
     if (rb)
     {
@@ -129,10 +129,12 @@ void PollRulesRb(struct ring_buffer* rb)
  * 
  * @return 0 on success or 1 on failure.
  */
-int HandleRbEvent(void* ctx, void* data, size_t sz)
+int handle_fwd_rules_rb_event(void* ctx, void* data, size_t sz)
 {
     config__t* cfg = (config__t*)ctx;
     fwd_rule_log_event_t* e = (fwd_rule_log_event_t*)data;
+
+    u16 port = ntohs(e->port);
 
     char src_ip_str[INET6_ADDRSTRLEN];
     u16 src_port = ntohs(e->src_port);
@@ -140,7 +142,7 @@ int HandleRbEvent(void* ctx, void* data, size_t sz)
     char bind_ip_str[INET6_ADDRSTRLEN];
     u16 bind_port = ntohs(e->bind_port);
 
-    const char* bind_protocol_str = GetProtocolStrById(e->bind_protocol);
+    const char* protocol_str = get_protocol_str_by_id(e->protocol);
 
     char dst_ip_str[INET6_ADDRSTRLEN];
     u16 dst_port = ntohs(e->dst_port);
@@ -149,7 +151,7 @@ int HandleRbEvent(void* ctx, void* data, size_t sz)
     inet_ntop(AF_INET, &e->bind_ip, bind_ip_str, sizeof(bind_ip_str));
     inet_ntop(AF_INET, &e->dst_ip, dst_ip_str, sizeof(dst_ip_str));
 
-    LogMsg(cfg, 0, 0, "[FWD] Created %s connection '%s:%d' => '%s:%d' (to '%s:%d')...", bind_protocol_str, src_ip_str, src_port, bind_ip_str, bind_port, dst_ip_str, dst_port);
+    log_msg(cfg, 0, 0, "[FWD] Created %s connection '%s:%d' => '%s:%d' (to '%s:%d'). Using source port %d...", protocol_str, src_ip_str, src_port, bind_ip_str, bind_port, dst_ip_str, dst_port, port);
 
     return 0;
 }

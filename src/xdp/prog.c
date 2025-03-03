@@ -12,8 +12,8 @@
 
 #include <xdp/utils/forward.h>
 #include <xdp/utils/logging.h>
+#include <xdp/utils/stats.h>
 #include <xdp/utils/helpers.h>
-#include <xdp/utils/csum.h>
 
 #include <xdp/utils/maps.h>
 
@@ -30,18 +30,27 @@ int xdp_prog_main(struct xdp_md *ctx)
     void *data = (void *)(long)ctx->data;
     void *data_end = (void *)(long)ctx->data_end;
 
+    // Lookup stats map.
+    u32 stats_key = 0;
+
+    stats_t* stats = bpf_map_lookup_elem(&map_stats, &stats_key);
+
     // Initialize Ethernet header.
     struct ethhdr *eth = data;
 
     // Check Ethernet header.
     if (unlikely(eth + 1 > (struct ethhdr *)data_end))
     {
+        inc_pkt_stats(stats, STATS_TYPE_DROPPED);
+
         return XDP_DROP;
     }
 
     // If not IPv4, pass down network stack. Will be adding IPv6 support later on.
-    if (eth->h_proto != htons(ETH_P_IP))
+    if (unlikely(eth->h_proto != htons(ETH_P_IP)))
     {
+        inc_pkt_stats(stats, STATS_TYPE_PASSED);
+
         return XDP_PASS;
     }
 
@@ -51,12 +60,16 @@ int xdp_prog_main(struct xdp_md *ctx)
     // Check IP header.
     if (unlikely(iph + 1 > (struct iphdr *)data_end))
     {
+        inc_pkt_stats(stats, STATS_TYPE_DROPPED);
+
         return XDP_DROP;
     }
 
     // We only support TCP, UDP, and ICMP for forwarding at this moment.
     if (iph->protocol != IPPROTO_TCP && iph->protocol != IPPROTO_UDP && iph->protocol != IPPROTO_ICMP)
     {
+        inc_pkt_stats(stats, STATS_TYPE_PASSED);
+
         return XDP_PASS;
     }
 
@@ -65,7 +78,8 @@ int xdp_prog_main(struct xdp_md *ctx)
     struct tcphdr *tcph = NULL;
     struct icmphdr *icmph = NULL;
 
-    u16 portkey = 0;
+    u16 src_port;
+    u16 dst_port = 0;
 
     switch (iph->protocol)
     {
@@ -74,6 +88,8 @@ int xdp_prog_main(struct xdp_md *ctx)
 
             if (tcph + 1 > (struct tcphdr *)data_end)
             {
+                inc_pkt_stats(stats, STATS_TYPE_DROPPED);
+
                 return XDP_DROP;
             }
 
@@ -84,6 +100,8 @@ int xdp_prog_main(struct xdp_md *ctx)
 
             if (udph + 1 > (struct udphdr *)data_end)
             {
+                inc_pkt_stats(stats, STATS_TYPE_DROPPED);
+
                 return XDP_DROP;
             }
 
@@ -94,197 +112,224 @@ int xdp_prog_main(struct xdp_md *ctx)
 
             if (icmph + 1 > (struct icmphdr *)data_end)
             {
+                inc_pkt_stats(stats, STATS_TYPE_DROPPED);
+
                 return XDP_DROP;
             }
 
             break;
     }
 
-    portkey = (tcph) ? tcph->dest : (udph) ? udph->dest : 0;
-
-    // Choose which map we're using.
-    void* map = (tcph) ? (void *)&map_tcp_conns : (udph) ? (void*)&map_udp_conns : NULL;
+    src_port = (tcph) ? tcph->source : (udph) ? udph->source : 0;
+    dst_port = (tcph) ? tcph->dest : (udph) ? udph->dest : 0;
 
     // Construct forward key.
-    struct forward_key fwdkey = {0};
+    fwd_rule_key_t rule_key = {0};
     
-    fwdkey.bindaddr = iph->daddr;
-    fwdkey.protocol = iph->protocol;
-    fwdkey.bindport = portkey;
-    
-    struct forward_info *fwdinfo = bpf_map_lookup_elem(&map_fwd_rules, &fwdkey);
+    rule_key.ip = iph->daddr;
+    rule_key.port = dst_port;
+    rule_key.protocol = iph->protocol;
 
-    if (fwdinfo)
+    fwd_rule_val_t *rule = bpf_map_lookup_elem(&map_fwd_rules, &rule_key);
+
+    if (rule)
     {
-        if (!map && !icmph)
+        // Ensure we aren't actually receiving replies back from the destination address on the same bind and source port. Or ICMP replies.
+        if (iph->saddr == rule->dst_ip)
         {
-            return XDP_PASS;
+            goto no_rule;
         }
 
         u64 now = bpf_ktime_get_ns();
 
-        // Ensure we aren't actually receiving replies back from the destination address on the same bind and source port. Or ICMP replies.
-        if (iph->saddr == fwdinfo->destaddr)
-        {
-            goto reply;
-        }
-
         // Check if we have an existing connection.
-        struct conn_key connkey = {0};
+        conn_key_t conn_key = {0};
 
-        connkey.clientaddr = iph->saddr;
-        connkey.clientport = (tcph) ? tcph->source : (udph) ? udph->source : 0;
-        connkey.bindaddr = iph->daddr;
-        connkey.bindport = portkey;
-        connkey.protocol = iph->protocol;
+        conn_key.src_ip = iph->saddr;
+        conn_key.src_port = src_port;
 
-        // Check for existing connection with UDP/TCP.
-        if (map)
+        conn_key.bind_ip = iph->daddr;
+        conn_key.bind_port = dst_port;
+
+        conn_key.protocol = iph->protocol;
+
+        conn_val_t* conn = bpf_map_lookup_elem(&map_connections, &conn_key);
+
+        if (conn)
         {
-            u16 *connport = bpf_map_lookup_elem(&map_connections, &connkey);
+            // Perform lookup on ports map and make sure we're still valid.
+            port_key_t port_key = {0};
+            port_key.bind_ip = iph->daddr;
+            port_key.protocol = iph->protocol;
 
-            if (connport)
+            port_key.port = conn->port;
+
+            port_val_t* port_lookup = bpf_map_lookup_elem(&map_ports, &port_key);
+
+            // If lookup fails, destroy connection.
+            if (!port_lookup)
             {
-                // Now attempt to retrieve connection from port map.
-                struct port_key pkey = {0};
-                pkey.bindaddr = iph->daddr;
-                pkey.destaddr = fwdinfo->destaddr;
-                pkey.port = *connport;
+                bpf_map_delete_elem(&map_connections, &conn_key);
 
-                struct connection *conn = bpf_map_lookup_elem(map, &pkey);
+                inc_pkt_stats(stats, STATS_TYPE_DROPPED);
 
-                if (conn)
+                return XDP_DROP;
+            }
+
+            // If the port lookup's source IP doesn't match the client's information, also destroy.
+            if (port_lookup->src_ip != iph->saddr || port_lookup->src_port != src_port)
+            {
+                bpf_map_delete_elem(&map_connections, &conn_key);
+
+                inc_pkt_stats(stats, STATS_TYPE_DROPPED);
+
+                return XDP_DROP;
+            }
+
+            // Update connection stats.
+            conn->count++;
+            conn->last_seen = now;
+
+            // Update port stats.
+            port_lookup->count++;
+            port_lookup->last_seen = now;
+
+            // Forward the packet.
+            return fwd_packet(rule, conn, stats, ctx, &data, &data_end, &eth, &iph, &tcph, &udph, &icmph);
+        }
+        else
+        {
+            u16 port_to_use = 0;
+
+            port_key_t port_key = {0};
+            port_key.bind_ip = iph->daddr;
+            port_key.protocol = iph->protocol;
+
+            if (!icmph)
+            {
+                u64 last = UINT64_MAX;
+                
+                for (u16 i = MIN_PORT; i <= MAX_PORT; i++)
                 {
-                    // Update connection stats before forwarding packet.
-                    conn->lastseen = now;
-                    conn->count++;
+                    port_key.port = htons(i);
 
-                    // Forward the packet!
-                    if (conn->clientport == connkey.clientport)
+                    port_val_t* port_lookup = bpf_map_lookup_elem(&map_ports, &port_key);
+
+                    if (!port_lookup)
                     {
-                        return forwardpacket4(fwdinfo, conn, ctx);
+                        port_to_use = i;
+
+                        break;
                     }
                     else
                     {
-                        bpf_map_delete_elem(map, &pkey);
-                    }                    
-                }
-            }
-        }
+                        u64 pps = (port_lookup->last_seen - port_lookup->first_seen) / port_lookup->count;
 
-        u16 porttouse = 0;
-
-        if (map)
-        {
-            u64 last = UINT64_MAX;
-
-            // Creating the port_key struct outside of the loop and assigning bind address should save some CPU cycles.
-            struct port_key pkey = {0};
-            pkey.bindaddr = iph->daddr;
-            pkey.destaddr = fwdinfo->destaddr;
-            
-            for (u16 i = MIN_PORT; i <= MAX_PORT; i++)
-            {
-                pkey.port = htons(i);
-
-                struct connection *newconn = bpf_map_lookup_elem(map, &pkey);
-
-                if (!newconn)
-                {
-                    porttouse = i;
-
-                    break;
-                }
-                else
-                {
-                    // For some reason when trying to divide by any number (such as 1000000000 to get the actual PPS), the BPF verifier doesn't like that.
-                    // Doesn't matter though and perhaps better we don't divide since that's one less calculation to worry about.
-                    u64 pps = (newconn->lastseen - newconn->firstseen) / newconn->count;
-
-                    // We'll want to replace the most inactive connection.
-                    if (last > pps)
-                    {
-                        porttouse = i;
-                        last = pps;
+                        // We'll want to replace the most inactive connection.
+                        if (last > pps)
+                        {
+                            port_to_use = i;
+                            last = pps;
+                        }
                     }
                 }
             }
-        }
 
-        if (porttouse > 0 || icmph)
-        {
-            u16 port = 0;
-
-            if (map)
+            if (port_to_use > 0 || icmph)
             {
-                // Insert information about connection.
-                struct conn_key nconnkey = {0};
-                nconnkey.bindaddr = iph->daddr;
-                nconnkey.bindport = portkey;
-                nconnkey.clientaddr = iph->saddr;
-                nconnkey.clientport = connkey.clientport;
-                nconnkey.protocol = iph->protocol;
+                // Firstly, create connection.
+                conn_val_t new_conn = {0};
+                new_conn.src_ip = iph->saddr;
+                new_conn.src_port = src_port;
 
-                port = htons(porttouse);
+                new_conn.bind_port = dst_port;
 
-                bpf_map_update_elem(&map_connections, &nconnkey, &port, BPF_ANY);
+                new_conn.count = 1;
+                new_conn.first_seen = now;
+                new_conn.last_seen = now;
+                
+                new_conn.port = htons(port_to_use);
+
+                bpf_map_update_elem(&map_connections, &conn_key, &new_conn, BPF_ANY);
+
+                // Next, add to the port map.
+                port_key.port = new_conn.port;
+
+                port_val_t new_port = {0};
+                new_port.src_ip = iph->saddr;
+                new_port.src_port = src_port;
+
+                new_port.bind_port = dst_port;
+
+                new_port.count = 1;
+
+                new_port.first_seen = now;
+                new_port.last_seen = now;
+
+                bpf_map_update_elem(&map_ports, &port_key, &new_port, BPF_ANY);
+
+                int ret = fwd_packet(rule, &new_conn, stats, ctx, &data, &data_end, &eth, &iph, &tcph, &udph, &icmph);
+
+#ifdef ENABLE_RULE_LOGGING
+                if (ret == XDP_TX && rule->log)
+                {
+                    log_msg(now, new_conn.port, new_port.src_ip, src_port, rule_key.ip, dst_port, iph->protocol, rule->dst_ip, rule->dst_port);
+                }
+#endif
+
+                return ret;
             }
 
-            // Insert new connection into port map.
-            struct port_key npkey = {0};
-            npkey.bindaddr = iph->daddr;
-            npkey.destaddr = fwdinfo->destaddr;
-            npkey.port = port;
+            inc_pkt_stats(stats, STATS_TYPE_DROPPED);
 
-            struct connection newconn = {0};
-            newconn.clientaddr = iph->saddr;
-            newconn.clientport = connkey.clientport;
-            newconn.firstseen = now;
-            newconn.lastseen = now;
-            newconn.count = 1;
-            newconn.bindport = portkey;
-            newconn.port = port;
-
-            if (map)
-            {
-                bpf_map_update_elem(map, &npkey, &newconn, BPF_ANY);
-            }
-
-            // Finally, forward packet.
-            return forwardpacket4(fwdinfo, &newconn, ctx);
+            return XDP_DROP;
         }
     }
     else
     {
-        reply:;
+no_rule:;
         
-        // Look for packets coming back from bind addresses.
-        portkey = (tcph) ? tcph->dest : (udph) ? udph->dest : 0;
-
-        if (map)
+        if (!icmph)
         {
-            struct port_key pkey = {0};
-            pkey.bindaddr = iph->daddr;
-            pkey.destaddr = iph->saddr;
-            pkey.port = portkey;
+            port_key_t port_key = {0};
+            port_key.bind_ip = iph->daddr;
+            port_key.protocol = iph->protocol;
+            port_key.port = dst_port;
 
             // Find out what the client IP is.
-            struct connection *conn = bpf_map_lookup_elem(map, &pkey);
+            port_val_t* port_lookup = bpf_map_lookup_elem(&map_ports, &port_key);
 
-            if (conn)
+            if (port_lookup)
             {
-                // Now forward packet back to actual client.
-                return forwardpacket4(NULL, conn, ctx);
+                // Perform connection lookup.
+                conn_key_t conn_key = {0};
+                conn_key.src_ip = port_lookup->src_ip;
+                conn_key.src_port = port_lookup->src_port;
+
+                conn_key.bind_ip = iph->daddr;
+                conn_key.bind_port = port_lookup->bind_port;
+
+                conn_key.protocol = iph->protocol;
+
+                conn_val_t* conn = bpf_map_lookup_elem(&map_connections, &conn_key);
+
+                if (conn)
+                {
+                    // Now forward packet back to actual client.
+                    return fwd_packet(NULL, conn, stats, ctx, &data, &data_end, &eth, &iph, &tcph, &udph, &icmph);
+                }
             }
         }
-        else if (icmph && icmph->type == ICMP_ECHOREPLY)
+        else if (icmph->type == ICMP_ECHOREPLY)
         {
             // Handle ICMP replies.
-            struct connection newconn = {0};
-            
-            return forwardpacket4(NULL, &newconn, ctx);
+            conn_val_t new_conn = {0};
+
+            return fwd_packet(NULL, &new_conn, stats, ctx, &data, &data_end, &eth, &iph, &tcph, &udph, &icmph);
         }
     }
+
+    inc_pkt_stats(stats, STATS_TYPE_PASSED);
 
     return XDP_PASS;
 }

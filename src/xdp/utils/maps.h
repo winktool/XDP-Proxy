@@ -16,33 +16,25 @@ struct
 {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, MAX_FWD_RULES);
-    __type(key, struct forward_key);
-    __type(value, struct forward_info);
+    __type(key, fwd_rule_key_t);
+    __type(value, fwd_rule_val_t);
 } map_fwd_rules SEC(".maps");
 
 struct
 {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __uint(max_entries, (MAX_FWD_RULES * (MAX_PORT - (MIN_PORT - 1))));
-    __type(key, struct port_key);
-    __type(value, struct connection);
-} map_tcp_conns SEC(".maps");
-
-struct
-{
-    __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __uint(max_entries, (MAX_FWD_RULES * (MAX_PORT - (MIN_PORT - 1))));
-    __type(key, struct port_key);
-    __type(value, struct connection);
-} map_udp_conns SEC(".maps");
-
-struct
-{
-    __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __uint(max_entries, MAX_CONNECTIONS);
-    __type(key, struct conn_key);
-    __type(value, u16);
+    __uint(max_entries, (MAX_FWD_RULES * (MAX_PORT - (MIN_PORT - 1)) * 3));
+    __type(key, conn_key_t);
+    __type(value, conn_val_t);
 } map_connections SEC(".maps");
+
+struct
+{
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, (MAX_PORT - (MIN_PORT - 1)));
+    __type(key, port_key_t);
+    __type(value, port_val_t);
+} map_ports SEC(".maps");
 
 #ifdef ENABLE_RULE_LOGGING
 struct

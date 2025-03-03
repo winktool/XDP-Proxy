@@ -44,7 +44,7 @@ LIBXDP_OBJS = $(addprefix $(LIBXDP_DIR)/sharedobjs/, $(notdir $(wildcard $(LIBXD
 
 # Loader directories.
 LOADER_SRC = prog.c
-LOADER_OUT = xdpfw
+LOADER_OUT = xdpfwd
 
 LOADER_UTILS_DIR = $(LOADER_DIR)/utils
 
@@ -87,7 +87,7 @@ endif
 
 # Rule add.
 RULE_ADD_SRC = prog.c
-RULE_ADD_OUT = xdpfw-add
+RULE_ADD_OUT = xdpfwd-add
 
 RULE_ADD_UTILS_DIR = $(RULE_ADD_DIR)/utils
 
@@ -99,7 +99,7 @@ RULE_ADD_OBJS = $(BUILD_RULE_ADD_DIR)/$(RULE_ADD_UTILS_CLI_OBJ)
 
 # Rule delete.
 RULE_DEL_SRC = prog.c
-RULE_DEL_OUT = xdpfw-del
+RULE_DEL_OUT = xdpfwd-del
 
 RULE_DEL_UTILS_DIR = $(RULE_DEL_DIR)/utils
 

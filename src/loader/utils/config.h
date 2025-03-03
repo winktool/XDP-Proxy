@@ -21,7 +21,7 @@ struct fwd_rule_cfg
 
     const char* bind_ip;
     u16 bind_port;
-    const char* bind_protocol;
+    const char* protocol;
 
     const char* dst_ip;
     u16 dst_port;
@@ -53,20 +53,22 @@ struct config_overrides
     int stdout_update_time;
 } typedef config_overrides_t;
 
-void SetCfgDefaults(config__t *cfg);
-void SetRuleDefaults(fwd_rule_cfg_t* rule);
+void set_cfg_defaults(config__t *cfg);
+void set_fwd_rule_defaults(fwd_rule_cfg_t* rule);
 
-void PrintConfig(config__t* cfg);
-void PrintRule(fwd_rule_cfg_t* rule, int idx);
+void print_config(config__t* cfg);
+void print_fwd_rule(fwd_rule_cfg_t* rule, int idx);
 
-int LoadConfig(config__t *cfg, const char* cfg_file, config_overrides_t* overrides);
-int SaveCfg(config__t* cfg, const char* file_path);
+int load_config(config__t *cfg, const char* cfg_file, config_overrides_t* overrides);
+int save_cfg(config__t* cfg, const char* file_path);
 
-int OpenCfg(FILE** file, const char *file_name);
-int CloseCfg(FILE* file);
-int ReadCfg(FILE* file, char** buffer);
-int ParseCfg(config__t *cfg, const char* data, config_overrides_t* overrides);
+int open_cfg(FILE** file, const char *file_name);
+int close_cfg(FILE* file);
+int read_cfg(FILE* file, char** buffer);
+int parse_cfg(config__t *cfg, const char* data, config_overrides_t* overrides);
 
-int GetNextAvailableFwdRuleIndex(config__t* cfg);
+int get_next_available_fwd_rule_index(config__t* cfg);
+
+int get_fwd_rule_index(config__t* cfg, const char* bind_ip, u16 bind_port, const char* protocol);
 
 #include <loader/utils/logging.h>

@@ -5,23 +5,24 @@
  * 
  * @return void
  */
-void PrintHelpMenu()
+void print_help_menu()
 {
-    printf("Usage: xdpfw [OPTIONS]\n\n");
+    printf("Usage: xdpfwd [OPTIONS]\n\n");
 
-    printf("  -c, --config         Config file location (default: /etc/xdpfw/xdpfw.conf).\n");
-    printf("  -o, --offload        Load the XDP program in hardware/offload mode.\n");
-    printf("  -s, --skb            Force the XDP program to load with SKB mode instead of DRV.\n");
-    printf("  -t, --time           Duration to run the program (seconds). 0 or unset = infinite.\n");
-    printf("  -l, --list           Print config details including rules (exits after execution).\n");
-    printf("  -h, --help           Show this help message.\n\n");
-    printf("  -v, --verbose        Override config's verbose value.\n");
-    printf("      --log-file       Override config's log file value.\n");
-    printf("  -i, --interface      Override config's interface value.\n");
-    printf("  -u, --update-time    Override config's update time value.\n");
-    printf("  -n, --no-stats       Override config's no stats value.\n");
-    printf("      --stats-ps       Override config's stats per second value.\n");
-    printf("      --stdout-ut      Override config's stdout update time value.\n");
+    printf("  -c, --config <file>           Config file location (default: /etc/xdpfwd/xdpfwd.conf).\n");
+    printf("  -o, --offload                 Load the XDP program in hardware/offload mode.\n");
+    printf("  -s, --skb                     Force the XDP program to load with SKB mode instead of DRV.\n");
+    printf("  -t, --time <seconds>          Duration to run the program (seconds). 0 or unset = infinite.\n");
+    printf("  -l, --list                    Print config details including rules (exits after execution).\n");
+    printf("  -h, --help                    Show this help message.\n\n");
+    
+    printf("  -v, --verbose <lvl>           Override config's verbose value.\n");
+    printf("      --log-file <file>         Override config's log file value.\n");
+    printf("  -i, --interface <name>        Override config's interface value.\n");
+    printf("  -u, --update-time <time>      Override config's update time value.\n");
+    printf("  -n, --no-stats <1/0>          Override config's no stats value.\n");
+    printf("      --stats-ps <1/0>          Override config's stats per second value.\n");
+    printf("      --stdout-ut <time>        Override config's stdout update time value.\n");
 }
 
 /**
@@ -31,7 +32,7 @@ void PrintHelpMenu()
  * 
  * @return void
  */
-void SignalHndl(int code)
+void signal_hndl(int code)
 {
     cont = 0;
 }
@@ -43,7 +44,7 @@ void SignalHndl(int code)
  * 
  * @return Returns an IP structure with IP and CIDR. 
  */
-ip_range_t ParseIpCidr(const char *ip)
+ip_range_t parse_ip_range(const char *ip)
 {
     ip_range_t ret = {0};
     ret.cidr = 32;
@@ -76,7 +77,7 @@ ip_range_t ParseIpCidr(const char *ip)
  * 
  * @return The protocol string. 
  */
-const char* GetProtocolStrById(int id)
+const char* get_protocol_str_by_id(int id)
 {
     switch (id)
     {
@@ -100,9 +101,9 @@ const char* GetProtocolStrById(int id)
  * 
  * @return The protocol ID or -1 on failure.
  */
-int GetProtocolIdByStr(char* name)
+int get_protocol_id_by_str(char* name)
 {
-    LowerStr(name);
+    lower_str(name);
 
     if (strcmp(name, "tcp") == 0)
     {
@@ -125,16 +126,14 @@ int GetProtocolIdByStr(char* name)
  * 
  * @return void
  */
-void PrintToolInfo()
+void print_tool_info()
 {
-    printf(
-        " __  ______  ____    _____ _                        _ _ \n"
-        " \\ \\/ /  _ \\|  _ \\  |  ___(_)_ __ _____      ____ _| | |\n"
-        "  \\  /| | | | |_) | | |_  | | '__/ _ \\ \\ /\\ / / _` | | |\n"
-        "  /  \\| |_| |  __/  |  _| | | | |  __/\\ V  V / (_| | | |\n"
-        " /_/\\_\\____/|_|     |_|   |_|_|  \\___| \\_/\\_/ \\__,_|_|_|\n"
-        "\n\n"
-    );
+    printf(" __  ______  ____    ____                      \n");
+    printf(" \\ \\/ /  _ \\|  _ \\  |  _ \\ _ __ _____  ___   _ \n");
+    printf("  \\  /| | | | |_) | | |_) | '__/ _ \\ \\/ / | | |\n");
+    printf("  /  \\| |_| |  __/  |  __/| | | (_) >  <| |_| |\n");
+    printf(" /_/\\_\\____/|_|     |_|   |_|  \\___/_/\\_\\\\__, |\n");
+    printf("                                         |___/ \n\n");
 }
 
 /**
@@ -142,7 +141,7 @@ void PrintToolInfo()
  * 
  * @return The current nanoseconds since the system last booted.
  */
-u64 GetBootNanoTime()
+u64 get_boot_nano_time()
 {
     struct sysinfo sys;
     sysinfo(&sys);
@@ -157,7 +156,7 @@ u64 GetBootNanoTime()
  * 
  * @return void
  */
-void LowerStr(char *str) 
+void lower_str(char *str) 
 {
     for (char *p = str; *p; p++) 
     {

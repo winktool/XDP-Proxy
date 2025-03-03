@@ -20,11 +20,14 @@ struct ip_range
 
 extern int cont;
 
-void PrintHelpMenu();
-void SignalHndl(int code);
-ip_range_t ParseIpCidr(const char* ip);
-const char* GetProtocolStrById(int id);
-void PrintToolInfo();
-u64 GetBootNanoTime();
+void print_help_menu();
+void signal_hndl(int code);
+ip_range_t parse_ip_range(const char* ip);
 
-void LowerStr(char *str) ;
+const char* get_protocol_str_by_id(int id);
+int get_protocol_id_by_str(char* name);
+
+void print_tool_info();
+u64 get_boot_nano_time();
+
+void lower_str(char *str) ;

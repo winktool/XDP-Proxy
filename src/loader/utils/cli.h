@@ -23,4 +23,4 @@ struct cli
     int stdout_update_time;
 } typedef cli_t;
 
-void ParseCli(cli_t *cli, int argc, char *argv[]);
+void parse_cli(cli_t *cli, int argc, char *argv[]);

@@ -9,7 +9,7 @@
  * 
  * @return void
  */
-static __always_inline void swapeth(struct ethhdr *eth)
+static __always_inline void swap_eth(struct ethhdr* eth)
 {
     u8 tmp[ETH_ALEN];
 

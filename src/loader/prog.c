@@ -28,16 +28,16 @@ int doing_stats = 0;
  * @param obj A pointer to the BPF object.
  * @param ignore_errors Whether to ignore errors.
  */
-static void UnpinNeededMaps(config__t* cfg, struct bpf_object* obj, int ignore_errors)
+static void unpin_needed_maps(config__t* cfg, struct bpf_object* obj, int ignore_errors)
 {
     int ret;
 
     // Unpin forward rules map.
-    if ((ret = UnpinBpfMap(obj, XDP_MAP_PIN_DIR, "map_fwd_rules")) != 0)
+    if ((ret = unpin_map(obj, XDP_MAP_PIN_DIR, "map_fwd_rules")) != 0)
     {
         if (!ignore_errors)
         {
-            LogMsg(cfg, 1, 0, "[WARNING] Failed to un-pin BPF map 'map_block' from file system (%d).", ret);
+            log_msg(cfg, 1, 0, "[WARNING] Failed to un-pin BPF map 'map_block' from file system (%d).", ret);
         }
     }
 }
@@ -56,12 +56,12 @@ int main(int argc, char *argv[])
     cli.stats_per_second = -1;
     cli.stdout_update_time = -1;
 
-    ParseCli(&cli, argc, argv);
+    parse_cli(&cli, argc, argv);
 
     // Check for help.
     if (cli.help)
     {
-        PrintHelpMenu();
+        print_help_menu();
 
         return EXIT_SUCCESS;
     }
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
     // Initialize config.
     config__t cfg = {0};
 
-    SetCfgDefaults(&cfg);
+    set_cfg_defaults(&cfg);
 
     // Create overrides for config and set arguments from CLI.
     config_overrides_t cfg_overrides = {0};
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
     cfg_overrides.stdout_update_time = cli.stdout_update_time;
 
     // Load config.
-    if ((ret = LoadConfig(&cfg, cli.cfg_file, &cfg_overrides)) != 0)
+    if ((ret = load_config(&cfg, cli.cfg_file, &cfg_overrides)) != 0)
     {
         fprintf(stderr, "[ERROR] Failed to load config from file system (%s)(%d).\n", cli.cfg_file, ret);
 
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
     // Check for list option.
     if (cli.list)
     {
-        PrintConfig(&cfg);
+        print_config(&cfg);
 
         return EXIT_SUCCESS;
     }
@@ -101,42 +101,42 @@ int main(int argc, char *argv[])
     // Print tool info.
     if (cfg.verbose > 0)
     {
-        PrintToolInfo();
+        print_tool_info();
     }
 
     // Check interface.
     if (cfg.interface == NULL)
     {
-        LogMsg(&cfg, 0, 1, "[ERROR] No interface specified in config or CLI override.");
+        log_msg(&cfg, 0, 1, "[ERROR] No interface specified in config or CLI override.");
 
         return EXIT_FAILURE;
     }
 
-    LogMsg(&cfg, 2, 0, "Raising RLimit...");
+    log_msg(&cfg, 2, 0, "Raising RLimit...");
 
     // Raise RLimit.
     struct rlimit rl = { RLIM_INFINITY, RLIM_INFINITY };
 
     if (setrlimit(RLIMIT_MEMLOCK, &rl)) 
     {
-        LogMsg(&cfg, 0, 1, "[ERROR] Failed to raise rlimit. Please make sure this program is ran as root!\n");
+        log_msg(&cfg, 0, 1, "[ERROR] Failed to raise rlimit. Please make sure this program is ran as root!\n");
 
         return EXIT_FAILURE;
     }
 
-    LogMsg(&cfg, 2, 0, "Retrieving interface index for '%s'...", cfg.interface);
+    log_msg(&cfg, 2, 0, "Retrieving interface index for '%s'...", cfg.interface);
 
     // Get interface index.
     int ifidx = if_nametoindex(cfg.interface);
 
     if (ifidx < 0)
     {
-        LogMsg(&cfg, 0, 1, "[ERROR] Failed to retrieve index of network interface '%s'.\n", cfg.interface);
+        log_msg(&cfg, 0, 1, "[ERROR] Failed to retrieve index of network interface '%s'.\n", cfg.interface);
 
         return EXIT_FAILURE;
     }
 
-    LogMsg(&cfg, 2, 0, "Loading XDP/BPF program at '%s'...", XDP_OBJ_PATH);
+    log_msg(&cfg, 2, 0, "Loading XDP/BPF program at '%s'...", XDP_OBJ_PATH);
 
     // Determine custom LibBPF log level.
     int silent = 1;
@@ -146,113 +146,113 @@ int main(int argc, char *argv[])
         silent = 0;
     }
 
-    SetLibBPFLogMode(silent);
+    set_libbpf_log_mode(silent);
 
     // Load BPF object.
-    struct xdp_program *prog = LoadBpfObj(XDP_OBJ_PATH);
+    struct xdp_program *prog = load_bpf_obj(XDP_OBJ_PATH);
 
     if (prog == NULL)
     {
-        LogMsg(&cfg, 0, 1, "[ERROR] Failed to load eBPF object file. Object path => %s.\n", XDP_OBJ_PATH);
+        log_msg(&cfg, 0, 1, "[ERROR] Failed to load eBPF object file. Object path => %s.\n", XDP_OBJ_PATH);
 
         return EXIT_FAILURE;
     }
 
-    LogMsg(&cfg, 2, 0, "Attaching XDP program to interface '%s'...", cfg.interface);
+    log_msg(&cfg, 2, 0, "Attaching XDP program to interface '%s'...", cfg.interface);
     
     // Attach XDP program.
     char *mode_used = NULL;
 
-    if ((ret = AttachXdp(prog, &mode_used, ifidx, 0, cli.skb, cli.offload)) != 0)
+    if ((ret = attach_xdp(prog, &mode_used, ifidx, 0, cli.skb, cli.offload)) != 0)
     {
-        LogMsg(&cfg, 0, 1, "[ERROR] Failed to attach XDP program to interface '%s' using available modes (%d).\n", cfg.interface, ret);
+        log_msg(&cfg, 0, 1, "[ERROR] Failed to attach XDP program to interface '%s' using available modes (%d).\n", cfg.interface, ret);
 
         return EXIT_FAILURE;
     }
 
     if (mode_used != NULL)
     {
-        LogMsg(&cfg, 1, 0, "Attached XDP program using mode '%s'...", mode_used);
+        log_msg(&cfg, 1, 0, "Attached XDP program using mode '%s'...", mode_used);
     }
 
-    LogMsg(&cfg, 2, 0, "Retrieving BPF map FDs...");
+    log_msg(&cfg, 2, 0, "Retrieving BPF map FDs...");
 
     // Retrieve BPF maps.
-    int map_stats = FindMapFd(prog, "map_stats");
+    int map_stats = get_map_fd(prog, "map_stats");
 
     if (map_stats < 0)
     {
-        LogMsg(&cfg, 0, 1, "[ERROR] Failed to find 'map_stats' BPF map.\n");
+        log_msg(&cfg, 0, 1, "[ERROR] Failed to find 'map_stats' BPF map.\n");
 
         return EXIT_FAILURE;
     }
 
-    LogMsg(&cfg, 3, 0, "map_stats FD => %d.", map_stats);
+    log_msg(&cfg, 3, 0, "map_stats FD => %d.", map_stats);
 
-    int map_fwd_rules = FindMapFd(prog, "map_fwd_rules");
+    int map_fwd_rules = get_map_fd(prog, "map_fwd_rules");
 
     // Check for valid maps.
     if (map_fwd_rules < 0)
     {
-        LogMsg(&cfg, 0, 1, "[ERROR] Failed to find 'map_fwd_rules' BPF map.\n");
+        log_msg(&cfg, 0, 1, "[ERROR] Failed to find 'map_fwd_rules' BPF map.\n");
 
         return EXIT_FAILURE;
     }
 
-    LogMsg(&cfg, 3, 0, "map_fwd_rules FD => %d.", map_fwd_rules);
+    log_msg(&cfg, 3, 0, "map_fwd_rules FD => %d.", map_fwd_rules);
 
 #ifdef ENABLE_RULE_LOGGING
-    int map_fwd_rules_log = FindMapFd(prog, "map_fwd_rules_log");
+    int map_fwd_rules_log = get_map_fd(prog, "map_fwd_rules_log");
 
     struct ring_buffer* rb = NULL;
 
     if (map_fwd_rules_log < 0)
     {
-        LogMsg(&cfg, 1, 0, "[WARNING] Failed to find 'map_fwd_rules_log' BPF map. Rule logging will be disabled...");
+        log_msg(&cfg, 1, 0, "[WARNING] Failed to find 'map_fwd_rules_log' BPF map. Rule logging will be disabled...");
     }
     else
     {
-        LogMsg(&cfg, 3, 0, "map_fwd_rules_log FD => %d.", map_fwd_rules_log);
+        log_msg(&cfg, 3, 0, "map_fwd_rules_log FD => %d.", map_fwd_rules_log);
 
-        rb = ring_buffer__new(map_fwd_rules_log, HandleRbEvent, &cfg, NULL);
+        rb = ring_buffer__new(map_fwd_rules_log, handle_fwd_rules_rb_event, &cfg, NULL);
     }
 #endif
 
     // Pin BPF maps to file system if we need to.
     if (cfg.pin_maps)
     {
-        LogMsg(&cfg, 2, 0, "Pinning BPF maps...");
+        log_msg(&cfg, 2, 0, "Pinning BPF maps...");
 
-        struct bpf_object* obj = GetBpfObj(prog);
+        struct bpf_object* obj = get_bpf_obj(prog);
 
         // There are times where the BPF maps from the last run weren't cleaned up properly.
         // So it's best to attempt to unpin the maps before pinning while ignoring errors.
-        UnpinNeededMaps(&cfg, obj, 1);
+        unpin_needed_maps(&cfg, obj, 1);
 
         // Pin the block maps.
-        if ((ret = PinBpfMap(obj, XDP_MAP_PIN_DIR, "map_fwd_rules")) != 0)
+        if ((ret = pin_map(obj, XDP_MAP_PIN_DIR, "map_fwd_rules")) != 0)
         {
-            LogMsg(&cfg, 1, 0, "[WARNING] Failed to pin 'map_fwd_rules' to file system (%d)...", ret);
+            log_msg(&cfg, 1, 0, "[WARNING] Failed to pin 'map_fwd_rules' to file system (%d)...", ret);
         }
         else
         {
-            LogMsg(&cfg, 3, 0, "BPF map 'map_fwd_rules' pinned to '%s/map_fwd_rules'.", XDP_MAP_PIN_DIR);
+            log_msg(&cfg, 3, 0, "BPF map 'map_fwd_rules' pinned to '%s/map_fwd_rules'.", XDP_MAP_PIN_DIR);
         }
     }
 
-    LogMsg(&cfg, 2, 0, "Updating rules...");
+    log_msg(&cfg, 2, 0, "Updating rules...");
 
     // Update rules.
-    UpdateFwdRules(map_fwd_rules, &cfg);
+    update_fwd_rules(map_fwd_rules, &cfg);
 
     // Signal.
-    signal(SIGINT, SignalHndl);
-    signal(SIGTERM, SignalHndl);
+    signal(SIGINT, signal_hndl);
+    signal(SIGTERM, signal_hndl);
 
     // Receive CPU count for stats map parsing.
     int cpus = get_nprocs_conf();
 
-    LogMsg(&cfg, 4, 0, "Retrieved %d CPUs on host.", cpus);
+    log_msg(&cfg, 4, 0, "Retrieved %d CPUs on host.", cpus);
 
     unsigned int end_time = (cli.time > 0) ? time(NULL) + cli.time : 0;
 
@@ -287,13 +287,13 @@ int main(int argc, char *argv[])
             // Check if config file have been modified
             if (stat(cli.cfg_file, &conf_stat) == 0 && conf_stat.st_mtime > last_config_check) {
                 // Reload config.
-                if ((ret = LoadConfig(&cfg, cli.cfg_file, &cfg_overrides)) != 0)
+                if ((ret = load_config(&cfg, cli.cfg_file, &cfg_overrides)) != 0)
                 {
-                    LogMsg(&cfg, 1, 0, "[WARNING] Failed to load config after update check (%d)...\n", ret);
+                    log_msg(&cfg, 1, 0, "[WARNING] Failed to load config after update check (%d)...\n", ret);
                 }
 
                 // Update rules.
-                UpdateFwdRules(map_fwd_rules, &cfg);
+                update_fwd_rules(map_fwd_rules, &cfg);
 
                 // Update last check timer
                 last_config_check = time(NULL);
@@ -312,14 +312,14 @@ int main(int argc, char *argv[])
         // Calculate and display stats if enabled.
         if (!cfg.no_stats)
         {
-            if (CalculateStats(map_stats, cpus, cfg.stats_per_second))
+            if (calc_stats(map_stats, cpus, cfg.stats_per_second))
             {
-                LogMsg(&cfg, 1, 0, "[WARNING] Failed to calculate packet stats. Stats map FD => %d...\n", map_stats);
+                log_msg(&cfg, 1, 0, "[WARNING] Failed to calculate packet stats. Stats map FD => %d...\n", map_stats);
             }
         }
 
 #ifdef ENABLE_RULE_LOGGING
-        PollRulesRb(rb);
+        poll_fwd_rules_rb(rb);
 #endif
 
         usleep(sleep_time);
@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
 
     fprintf(stdout, "\n");
 
-    LogMsg(&cfg, 2, 0, "Cleaning up...");
+    log_msg(&cfg, 2, 0, "Cleaning up...");
 
 #ifdef ENABLE_RULE_LOGGING
     if (rb)
@@ -337,9 +337,9 @@ int main(int argc, char *argv[])
 #endif
 
     // Detach XDP program.
-    if (AttachXdp(prog, &mode_used, ifidx, 1, cli.skb, cli.offload))
+    if (attach_xdp(prog, &mode_used, ifidx, 1, cli.skb, cli.offload))
     {
-        LogMsg(&cfg, 0, 1, "[ERROR] Failed to detach XDP program from interface '%s'.\n", cfg.interface);
+        log_msg(&cfg, 0, 1, "[ERROR] Failed to detach XDP program from interface '%s'.\n", cfg.interface);
 
         return EXIT_FAILURE;
     }
@@ -347,17 +347,17 @@ int main(int argc, char *argv[])
     // Unpin maps from file system.
     if (cfg.pin_maps)
     {
-        LogMsg(&cfg, 2, 0, "Un-pinning BPF maps from file system...");
+        log_msg(&cfg, 2, 0, "Un-pinning BPF maps from file system...");
 
-        struct bpf_object* obj = GetBpfObj(prog);
+        struct bpf_object* obj = get_bpf_obj(prog);
 
-        UnpinNeededMaps(&cfg, obj, 0);
+        unpin_needed_maps(&cfg, obj, 0);
     }
 
     // Lastly, close the XDP program.
     xdp_program__close(prog);
 
-    LogMsg(&cfg, 1, 0, "Exiting.\n");
+    log_msg(&cfg, 1, 0, "Exiting.\n");
 
     // Exit program successfully.
     return EXIT_SUCCESS;

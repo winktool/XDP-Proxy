@@ -34,58 +34,7 @@
 #define memcpy(dest, src, n) __builtin_memcpy((dest), (src), (n))
 #endif
 
-static __always_inline int IsIpInRange(u32 src_ip, u32 net_ip, u8 cidr);
-
-#ifdef ENABLE_IP_RANGE_DROP
-static __always_inline int CheckIpRangeDrop(u32 ip);
-#endif
-
-struct connection
-{
-    u32 clientaddr;
-    u16 clientport;
-
-    u16 bindport;
-
-    u16 port;
-
-    u64 firstseen;
-    u64 lastseen;
-
-    u64 count;
-};
-
-struct forward_key
-{
-    u32 bindaddr;
-    u8 protocol;
-
-    u16 bindport;
-};
-
-struct forward_info
-{
-    u32 destaddr;
-    u16 destport;
-};
-
-struct port_key
-{
-    u32 bindaddr;
-    u32 destaddr;
-    u16 port;
-};
-
-struct conn_key
-{
-    u32 clientaddr;
-    u16 clientport;
-    u32 bindaddr;
-    u16 bindport;
-    u8 protocol;
-};
-
-static __always_inline void swapeth(struct ethhdr *eth);
+static __always_inline void swap_eth(struct ethhdr* eth);
 
 // The source file is included directly below instead of compiled and linked as an object because when linking, there is no guarantee the compiler will inline the function (which is crucial for performance).
 // I'd prefer not to include the function logic inside of the header file.

@@ -16,7 +16,7 @@
 
 extern int doing_stats;
 
-void LogMsg(config__t* cfg, int req_lvl, int error, const char* msg, ...);
+void log_msg(config__t* cfg, int req_lvl, int error, const char* msg, ...);
 
-void PollRulesRb(struct ring_buffer* rb);
-int HandleRbEvent(void* ctx, void* data, size_t sz);
+void poll_fwd_rules_rb(struct ring_buffer* rb);
+int handle_fwd_rules_rb_event(void* ctx, void* data, size_t sz);

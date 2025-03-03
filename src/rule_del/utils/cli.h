@@ -12,7 +12,7 @@ struct cli
 
     const char* bind_ip;
     int bind_port;
-    const char* bind_protocol;
+    const char* protocol;
 } typedef cli_t;
 
-void ParseCli(cli_t* cmd, int argc, char* argv[]);
+void parse_cli(cli_t* cli, int argc, char* argv[]);

@@ -9,49 +9,49 @@
  * 
  * @return 0 on success or 1 on error.
  */
-int LoadConfig(config__t *cfg, const char* cfg_file, config_overrides_t* overrides)
+int load_config(config__t *cfg, const char* cfg_file, config_overrides_t* overrides)
 {
     int ret;
     
     FILE *file = NULL;
     
     // Open config file.
-    if ((ret = OpenCfg(&file, cfg_file)) != 0 || file == NULL)
+    if ((ret = open_cfg(&file, cfg_file)) != 0 || file == NULL)
     {
         fprintf(stderr, "Error opening config file.\n");
         
         return ret;
     }
 
-    SetCfgDefaults(cfg);
+    set_cfg_defaults(cfg);
 
     memset(cfg->rules, 0, sizeof(cfg->rules));
 
     char* buffer = NULL;
 
     // Read config.
-    if ((ret = ReadCfg(file, &buffer)) != 0)
+    if ((ret = read_cfg(file, &buffer)) != 0)
     {
         fprintf(stderr, "Error reading config file.\n");
 
-        CloseCfg(file);
+        close_cfg(file);
 
         return ret;
     }
 
     // Parse config.
-    if ((ret = ParseCfg(cfg, buffer, overrides)) != 0)
+    if ((ret = parse_cfg(cfg, buffer, overrides)) != 0)
     {
         fprintf(stderr, "Error parsing config file.\n");
 
-        CloseCfg(file);
+        close_cfg(file);
 
         return ret;
     }
 
     free(buffer);
 
-    if ((ret = CloseCfg(file)) != 0)
+    if ((ret = close_cfg(file)) != 0)
     {
         fprintf(stderr, "Error closing config file.\n");
 
@@ -68,7 +68,7 @@ int LoadConfig(config__t *cfg, const char* cfg_file, config_overrides_t* overrid
  * 
  * @return 0 on success or 1 on error.
  */
-int OpenCfg(FILE** file, const char *file_name)
+int open_cfg(FILE** file, const char *file_name)
 {
     // Close any existing files.
     if (*file != NULL)
@@ -95,7 +95,7 @@ int OpenCfg(FILE** file, const char *file_name)
  * 
  * @param return 0 on success or error value of fclose().
  */
-int CloseCfg(FILE* file)
+int close_cfg(FILE* file)
 {
     return fclose(file);
 }
@@ -106,7 +106,7 @@ int CloseCfg(FILE* file)
  * @param file The file pointer.
  * @param buffer The buffer to store the data in (manually allocated).
  */
-int ReadCfg(FILE* file, char** buffer)
+int read_cfg(FILE* file, char** buffer)
 {
     fseek(file, 0, SEEK_END);
     long file_size = ftell(file);
@@ -139,7 +139,7 @@ int ReadCfg(FILE* file, char** buffer)
  * 
  * @return 0 on success or 1/-1 on error.
  */
-int ParseCfg(config__t *cfg, const char* data, config_overrides_t* overrides)
+int parse_cfg(config__t *cfg, const char* data, config_overrides_t* overrides)
 {
     // Initialize config.
     config_t conf;
@@ -150,7 +150,7 @@ int ParseCfg(config__t *cfg, const char* data, config_overrides_t* overrides)
     // Attempt to read the config.
     if (config_read_string(&conf, data) == CONFIG_FALSE)
     {
-        LogMsg(cfg, 0, 1, "Error from LibConfig when reading file - %s (Line %d)", config_error_text(&conf), config_error_line(&conf));
+        log_msg(cfg, 0, 1, "Error from LibConfig when reading file - %s (Line %d)", config_error_text(&conf), config_error_line(&conf));
 
         config_destroy(&conf);
 
@@ -317,7 +317,7 @@ int ParseCfg(config__t *cfg, const char* data, config_overrides_t* overrides)
 
             if (rule == NULL || rule_cfg == NULL)
             {
-                LogMsg(cfg, 0, 1, "[WARNING] Failed to read forward rule at index #%d. 'rule' or 'rule_cfg' is NULL (make sure you didn't exceed the maximum rules allowed!)...");
+                log_msg(cfg, 0, 1, "[WARNING] Failed to read forward rule at index #%d. 'rule' or 'rule_cfg' is NULL (make sure you didn't exceed the maximum rules allowed!)...");
 
                 continue;
             }
@@ -338,11 +338,33 @@ int ParseCfg(config__t *cfg, const char* data, config_overrides_t* overrides)
                 rule->log = log;
             }
 
+            // Protocol.
+            const char* protocol;
+
+            if (config_setting_lookup_string(rule_cfg, "protocol", &protocol) == CONFIG_TRUE)
+            {
+                if (rule->protocol)
+                {
+                    free((void*)rule->protocol);
+
+                    rule->protocol = NULL;
+                }
+
+                rule->protocol = strdup(protocol);
+            }
+
             // Bind IP.
             const char* bind_ip;
 
             if (config_setting_lookup_string(rule_cfg, "bind_ip", &bind_ip) == CONFIG_TRUE)
             {
+                if (rule->bind_ip)
+                {
+                    free((void*)rule->bind_ip);
+
+                    rule->bind_ip = NULL;
+                }
+
                 rule->bind_ip = strdup(bind_ip);
             }
 
@@ -354,19 +376,18 @@ int ParseCfg(config__t *cfg, const char* data, config_overrides_t* overrides)
                 rule->bind_port = bind_port;
             }
 
-            // Bind protocol.
-            const char* bind_protocol;
-
-            if (config_setting_lookup_string(rule_cfg, "bind_protocol", &bind_protocol) == CONFIG_TRUE)
-            {
-                rule->bind_protocol = strdup(bind_protocol);
-            }
-
             // Destination IP.
             const char* dst_ip;
 
             if (config_setting_lookup_string(rule_cfg, "dst_ip", &dst_ip) == CONFIG_TRUE)
             {
+                if (rule->dst_ip)
+                {
+                    free((void*)rule->dst_ip);
+
+                    rule->dst_ip = NULL;
+                }
+
                 rule->dst_ip = strdup(dst_ip);
             }
 
@@ -395,7 +416,7 @@ int ParseCfg(config__t *cfg, const char* data, config_overrides_t* overrides)
  * 
  * @param return 0 on success or 1 on failure.
  */
-int SaveCfg(config__t* cfg, const char* file_path)
+int save_cfg(config__t* cfg, const char* file_path)
 {
     config_t conf;
     config_setting_t *root, *setting;
@@ -469,23 +490,23 @@ int SaveCfg(config__t* cfg, const char* file_path)
                 config_setting_t* log = config_setting_add(rule_cfg, "log", CONFIG_TYPE_BOOL);
                 config_setting_set_bool(log, rule->log);
 
+                // Add protocol.
+                if (rule->protocol)
+                {
+                    config_setting_t* protocol = config_setting_add(rule_cfg, "protocol", CONFIG_TYPE_STRING);
+                    config_setting_set_string(protocol, rule->protocol);
+                }
+
                 // Add bind IP.
                 if (rule->bind_ip)
                 {
-                    config_setting_t* bind_ip = config_setting_add(rule_cfg, "bind_p", CONFIG_TYPE_STRING);
+                    config_setting_t* bind_ip = config_setting_add(rule_cfg, "bind_ip", CONFIG_TYPE_STRING);
                     config_setting_set_string(bind_ip, rule->bind_ip);
                 }
 
                 // Add bind port.
                 config_setting_t* bind_port = config_setting_add(rule_cfg, "bind_port", CONFIG_TYPE_INT);
                 config_setting_set_int(bind_port, rule->bind_port);
-
-                // Add bind protocol.
-                if (rule->bind_protocol)
-                {
-                    config_setting_t* bind_protocol = config_setting_add(rule_cfg, "bind_protocol", CONFIG_TYPE_STRING);
-                    config_setting_set_string(bind_protocol, rule->bind_protocol);
-                }
 
                 // Add destination IP.
                 if (rule->dst_ip)
@@ -526,7 +547,7 @@ int SaveCfg(config__t* cfg, const char* file_path)
  * 
  * @return void
  */
-void SetRuleDefaults(fwd_rule_cfg_t* rule)
+void set_fwd_rule_defaults(fwd_rule_cfg_t* rule)
 {
     rule->set = 0;
     rule->enabled = 1;
@@ -542,12 +563,12 @@ void SetRuleDefaults(fwd_rule_cfg_t* rule)
 
     rule->bind_port = 0;
 
-    if (rule->bind_protocol)
+    if (rule->protocol)
     {
-        free((void*)rule->bind_protocol);
+        free((void*)rule->protocol);
     }
 
-    rule->bind_protocol = NULL;
+    rule->protocol = NULL;
 
     if (rule->dst_ip)
     {
@@ -566,7 +587,7 @@ void SetRuleDefaults(fwd_rule_cfg_t* rule)
  * 
  * @return void
  */
-void SetCfgDefaults(config__t* cfg)
+void set_cfg_defaults(config__t* cfg)
 {
     cfg->verbose = 2;
     cfg->log_file = strdup("/var/log/xdpfw.log");
@@ -581,7 +602,7 @@ void SetCfgDefaults(config__t* cfg)
     {
         fwd_rule_cfg_t* rule = &cfg->rules[i];
 
-        SetRuleDefaults(rule);
+        set_fwd_rule_defaults(rule);
     }
 }
 
@@ -593,7 +614,7 @@ void SetCfgDefaults(config__t* cfg)
  * 
  * @return void
  */
-void PrintRule(fwd_rule_cfg_t* rule, int idx)
+void print_fwd_rule(fwd_rule_cfg_t* rule, int idx)
 {
     printf("\tRule #%d\n", idx);
     printf("\t\tEnabled => %d\n", rule->enabled);
@@ -601,7 +622,7 @@ void PrintRule(fwd_rule_cfg_t* rule, int idx)
 
     printf("\t\tBind IP => %s\n", rule->bind_ip);
     printf("\t\tBind Port => %d\n", rule->bind_port);
-    printf("\t\tBind Protocol => %s\n\n", rule->bind_protocol);
+    printf("\t\tBind Protocol => %s\n\n", rule->protocol);
 
     printf("\t\tDestination IP => %s\n", rule->dst_ip);
     printf("\t\tDestination Port => %d\n", rule->dst_port);
@@ -614,7 +635,7 @@ void PrintRule(fwd_rule_cfg_t* rule, int idx)
  * 
  * @return void
  */
-void PrintConfig(config__t* cfg)
+void print_config(config__t* cfg)
 {
     char* interface = "N/A";
 
@@ -653,7 +674,7 @@ void PrintConfig(config__t* cfg)
             break;
         }
 
-        PrintRule(rule, i + 1);
+        print_fwd_rule(rule, i + 1);
 
         printf("\n\n");
     }
@@ -666,13 +687,67 @@ void PrintConfig(config__t* cfg)
  * 
  * @return The next available index or -1 if there are no available indexes.
  */
-int GetNextAvailableRuleIndex(config__t* cfg)
+int get_next_available_fwd_rule_index(config__t* cfg)
 {
     for (int i = 0; i < MAX_FWD_RULES; i++)
     {
         fwd_rule_cfg_t* rule = &cfg->rules[i];
 
         if (rule->set)
+        {
+            continue;
+        }
+
+        return i;
+    }
+
+    return -1;
+}
+
+/**
+ * Retrieves index of a forward rule if it exists.
+ * 
+ * @param cfg A pointer to the config.
+ * @param bind_ip The bind IP.
+ * @param bind_port The bind port.
+ * @param protocol The protocol.
+ * 
+ * @return The index of the forward rule (or -1 if it doesn't exist).
+ */
+int get_fwd_rule_index(config__t* cfg, const char* bind_ip, u16 bind_port, const char* protocol)
+{
+    char protocol_lower[64];
+    strncpy(protocol_lower, protocol, sizeof(protocol_lower) - 1);
+    protocol_lower[sizeof(protocol_lower) - 1] = '\0';
+
+    lower_str(protocol_lower);
+
+    for (int i = 0; i < MAX_FWD_RULES; i++)
+    {
+        fwd_rule_cfg_t* rule = &cfg->rules[i];
+
+        if (!rule->bind_ip || !rule->protocol)
+        {
+            continue;
+        }
+
+        char rule_protocol_lower[64];
+        strncpy(rule_protocol_lower, rule->protocol, sizeof(rule_protocol_lower) - 1);
+        rule_protocol_lower[sizeof(rule_protocol_lower) - 1] = '\0';
+
+        lower_str(rule_protocol_lower);
+
+        if (strcmp(bind_ip, rule->bind_ip) != 0)
+        {
+            continue;
+        }
+
+        if (bind_port != rule->bind_port)
+        {
+            continue;
+        }
+
+        if (strcmp(protocol_lower, rule_protocol_lower) != 0)
         {
             continue;
         }

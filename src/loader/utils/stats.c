@@ -4,6 +4,7 @@ struct timespec last_update_time = {0};
 
 u64 last_forwarded = 0;
 u64 last_passed = 0;
+u64 last_dropped = 0;
 
 /**
  * Calculates and displays packet counters/stats.
@@ -14,7 +15,7 @@ u64 last_passed = 0;
  * 
  * @return 0 on success or 1 on failure.
  */
-int CalculateStats(int map_stats, int cpus, int per_second)
+int calc_stats(int map_stats, int cpus, int per_second)
 {
     u32 key = 0;
 
@@ -23,6 +24,7 @@ int CalculateStats(int map_stats, int cpus, int per_second)
 
     u64 forwarded = 0;
     u64 passed = 0;
+    u64 dropped = 0;
     
     if (bpf_map_lookup_elem(map_stats, &key, stats) != 0)
     {
@@ -31,21 +33,19 @@ int CalculateStats(int map_stats, int cpus, int per_second)
 
     for (int i = 0; i < cpus; i++)
     {
-        // Although this should NEVER happen, I'm seeing very strange behavior in the following GitHub issue.
-        // https://github.com/gamemann/XDP-Firewall/issues/10
-        // Therefore, before accessing stats[i], make sure the pointer to the specific CPU ID is not NULL.
         if (&stats[i] == NULL)
         {
-            fprintf(stderr, "[WARNING] Stats array at CPU ID #%d is NULL! Skipping...\n", i);
-
             continue;
         }
 
         forwarded += stats[i].forwarded;
         passed += stats[i].passed;
+        dropped += stats[i].dropped;
     }
 
-    u64 forwarded_val = forwarded, passed_val = passed;
+    u64 forwarded_val = forwarded;
+    u64 passed_val = passed;
+    u64 dropped_val = dropped;
 
     if (per_second)
     {
@@ -59,30 +59,36 @@ int CalculateStats(int map_stats, int cpus, int per_second)
         {
             forwarded_val = (forwarded - last_forwarded) / elapsed_time;
             passed_val = (passed - last_passed) / elapsed_time;
+            dropped_val = (dropped - last_dropped) / elapsed_time;
         }
 
         last_forwarded = forwarded;
         last_passed = passed;
+        last_dropped = dropped;
 
         last_update_time = now;
     }
 
     char forwarded_str[12];
     char passed_str[12];
+    char dropped_str[12];
 
     if (per_second)
     {
         snprintf(forwarded_str, sizeof(forwarded_str), "%llu PPS", forwarded_val);
         snprintf(passed_str, sizeof(passed_str), "%llu PPS", passed_val);
+        snprintf(dropped_str, sizeof(dropped_str), "%llu PPS", dropped_val);
     }
     else
     {
         snprintf(forwarded_str, sizeof(forwarded_str), "%llu", forwarded_val);
         snprintf(passed_str, sizeof(passed_str), "%llu", passed_val);
+        snprintf(dropped_str, sizeof(dropped_str), "%llu", dropped_val);
     }
     
     printf("\r\033[1;32mForwarded:\033[0m %s  |  ", forwarded_str);
-    printf("\033[1;34mPassed:\033[0m %s", passed_str);
+    printf("\033[1;34mPassed:\033[0m %s  |  ", passed_str);
+    printf("\033[1;31mDropped:\033[0m %s", dropped_str);
 
     fflush(stdout);    
 

@@ -28,7 +28,7 @@ const struct option opts[] =
  * 
  * @return Void
  */
-void ParseCli(cli_t *cli, int argc, char *argv[])
+void parse_cli(cli_t *cli, int argc, char *argv[])
 {
     int c;
 

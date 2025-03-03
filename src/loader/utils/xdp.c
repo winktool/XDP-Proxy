@@ -8,7 +8,7 @@
  * 
  * @return The map's FD.
  */
-int FindMapFd(struct xdp_program *prog, const char *map_name)
+int get_map_fd(struct xdp_program *prog, const char *map_name)
 {
     int fd = -1;
 
@@ -45,7 +45,7 @@ int FindMapFd(struct xdp_program *prog, const char *map_name)
  * 
  * @return void
  */
-static int LibBPFSilent(enum libbpf_print_level level, const char *format, va_list args)
+static int libbpf_silent(enum libbpf_print_level level, const char *format, va_list args)
 {
     return 0;
 }
@@ -57,11 +57,11 @@ static int LibBPFSilent(enum libbpf_print_level level, const char *format, va_li
  * 
  * @return void
  */
-void SetLibBPFLogMode(int silent)
+void set_libbpf_log_mode(int silent)
 {
     if (silent)
     {
-        libbpf_set_print(LibBPFSilent);
+        libbpf_set_print(libbpf_silent);
     }
 }
 
@@ -72,7 +72,7 @@ void SetLibBPFLogMode(int silent)
  * 
  * @return XDP program structure (pointer) or NULL.
  */
-struct xdp_program *LoadBpfObj(const char *file_name)
+struct xdp_program *load_bpf_obj(const char *file_name)
 {
     struct xdp_program *prog = xdp_program__open_file(file_name, "xdp_prog", NULL);
 
@@ -92,7 +92,7 @@ struct xdp_program *LoadBpfObj(const char *file_name)
  * 
  * @return The BPF object.
  */
-struct bpf_object* GetBpfObj(struct xdp_program* prog)
+struct bpf_object* get_bpf_obj(struct xdp_program* prog)
 {
     return xdp_program__bpf_obj(prog);
 }
@@ -109,7 +109,7 @@ struct bpf_object* GetBpfObj(struct xdp_program* prog)
  * 
  * @return 0 on success and 1 on error.
  */
-int AttachXdp(struct xdp_program *prog, char** mode, int ifidx, int detach, int force_skb, int force_offload)
+int attach_xdp(struct xdp_program *prog, char** mode, int ifidx, int detach, int force_skb, int force_offload)
 {
     int err;
 
@@ -190,59 +190,140 @@ int AttachXdp(struct xdp_program *prog, char** mode, int ifidx, int detach, int 
 }
 
 /**
- * Deletes a forward rule.
+ * Deletes a forward rule from the BPF map.
  * 
  * @param map_fwd_rules The forward rules BPF map FD.
  * @param rule The forward rule to delete.
  * 
- * @return 0 on success or the error value of bpf_map_delete_elem().
+ * @return 0 on success, 2 on if bind IP or protocol isn't specified, or the error value of bpf_map_delete_elem().
  */
-int DeleteRule(int map_fwd_rules, fwd_rule_cfg_t* rule)
+int delete_fwd_rule(int map_fwd_rules, fwd_rule_cfg_t* rule)
 {
-    return 0;
-    //return bpf_map_delete_elem(map_fwd_rules, &idx);
+    int ret;
+
+    if (!rule->bind_ip || !rule->protocol)
+    {
+        return 2;
+    }
+
+    // Construct key.
+    struct in_addr bind_ip_addr;
+
+    if ((ret = inet_pton(AF_INET, rule->bind_ip, &bind_ip_addr)) != 1)
+    {
+        return ret;
+    }
+
+    u16 bind_port = htons(rule->bind_port);
+
+    char protocol_str[64];
+    strncpy(protocol_str, rule->protocol, sizeof(protocol_str) - 1);
+    protocol_str[sizeof(protocol_str) - 1] = '\0';
+
+    int protocol = get_protocol_id_by_str(protocol_str);
+
+    if (bind_port < 0)
+    {
+        return 1;
+    }
+
+    fwd_rule_key_t key = {0};
+    key.ip = bind_ip_addr.s_addr;
+    key.port = bind_port;
+    key.protocol = protocol;
+
+    return bpf_map_delete_elem(map_fwd_rules, &key);
 }
 
 /**
- * Deletes all forward rules.
+ * Deletes all forward rules from the BPF map.
  * 
  * @param map_fwd_rules The rules BPF map FD.
  * @param cfg A pointer to the config structure.
  * 
  * @return void
  */
-void DeleteRules(int map_fwd_rules, config__t *cfg)
+void delete_fwd_rules(int map_fwd_rules, config__t *cfg)
 {
     for (int i = 0; i < MAX_FWD_RULES; i++)
     {
         fwd_rule_cfg_t* rule = &cfg->rules[i];
 
-        DeleteRule(map_fwd_rules, rule);
+        delete_fwd_rule(map_fwd_rules, rule);
     }
 }
 
 /**
- * Updates a forward rule.
+ * Updates a forward rule in the BPF map.
  * 
  * @param map_fwd_rules The rules BPF map FD.
  * @param rule A pointer to the config rule.
  * 
- * @return 0 on success or error value of bpf_map_update_elem().
+ * @return 0 on success, 2 on bind IP, protocol, or destination IP isn't specified, or error value of bpf_map_update_elem().
  */
-int UpdateFwdRule(int map_fwd_rules, fwd_rule_cfg_t* rule_cfg)
+int update_fwd_rule(int map_fwd_rules, fwd_rule_cfg_t* rule)
 {
-    return 0;
+    int ret;
+
+    if (!rule->bind_ip || !rule->protocol || !rule->dst_ip)
+    {
+        return 2;
+    }
+
+    // Construct key.
+    struct in_addr bind_ip_addr;
+
+    if ((ret = inet_pton(AF_INET, rule->bind_ip, &bind_ip_addr)) != 1)
+    {
+        return ret;
+    }
+
+    u16 bind_port = htons(rule->bind_port);
+
+    char protocol_str[64];
+    strncpy(protocol_str, rule->protocol, sizeof(protocol_str) - 1);
+    protocol_str[sizeof(protocol_str) - 1] = '\0';
+
+    int protocol = get_protocol_id_by_str(protocol_str);
+
+    if (bind_port < 0)
+    {
+        return 1;
+    }
+
+    fwd_rule_key_t key = {0};
+    key.ip = bind_ip_addr.s_addr;
+    key.port = bind_port;
+    key.protocol = protocol;
+
+    // Construct value.
+    struct in_addr dst_ip_addr;
+
+    if ((ret = inet_pton(AF_INET, rule->dst_ip, &dst_ip_addr)) != 1)
+    {
+        return ret;
+    }
+
+    u32 dst_port = htons(rule->dst_port);
+
+    fwd_rule_val_t val = {0};
+    val.log = rule->log;
+
+    val.dst_ip = dst_ip_addr.s_addr;
+    val.dst_port = dst_port;
+
+    return bpf_map_update_elem(map_fwd_rules, &key, &val, BPF_ANY);
 }
 
 /**
- * Updates the forward rules BPF map with current config settings.
+ * Updates the forward rules in the BPF map.
  * 
  * @param map_fwd_rules The forward rule's BPF map FD.
  * @param cfg A pointer to the config structure.
  * 
  * @return Void
  */
-void UpdateFwdRules(int map_fwd_rules, config__t *cfg)
+void update_fwd_rules(int map_fwd_rules, config__t *cfg)
 {
     int ret;
 
@@ -258,9 +339,16 @@ void UpdateFwdRules(int map_fwd_rules, config__t *cfg)
         }
 
         // Attempt to update rule.
-        if ((ret = UpdateFwdRule(map_fwd_rules, rule)) != 0)
+        if ((ret = update_fwd_rule(map_fwd_rules, rule)) != 0)
         {
-            fprintf(stderr, "[WARNING] Failed to update rule '%s:%d' (%s) due to BPF update error (%d)...\n", rule->bind_ip, rule->bind_port, rule->bind_protocol, ret);
+            if (ret != 2)
+            {
+                log_msg(cfg, 1, 0, "[WARNING] Failed to update rule '%s:%d' (%s) due to BPF update error (%d)...", rule->bind_ip, rule->bind_port, rule->protocol, ret);
+            }
+            else
+            {
+                log_msg(cfg, 1, 0, "[WARNING] Failed to update rule at index %d. Bind IP, protocol, or destination IP is not specified...", i + 1);
+            }
 
             continue;
         }
@@ -276,7 +364,7 @@ void UpdateFwdRules(int map_fwd_rules, config__t *cfg)
  * 
  * @return 0 on success or value of bpf_map__pin() on error.
  */
-int PinBpfMap(struct bpf_object* obj, const char* pin_dir, const char* map_name)
+int pin_map(struct bpf_object* obj, const char* pin_dir, const char* map_name)
 {
     struct bpf_map* map = bpf_object__find_map_by_name(obj, map_name);
 
@@ -300,7 +388,7 @@ int PinBpfMap(struct bpf_object* obj, const char* pin_dir, const char* map_name)
  * 
  * @return
  */
-int UnpinBpfMap(struct bpf_object* obj, const char* pin_dir, const char* map_name)
+int unpin_map(struct bpf_object* obj, const char* pin_dir, const char* map_name)
 {
     struct bpf_map* map = bpf_object__find_map_by_name(obj, map_name);
 
@@ -323,7 +411,7 @@ int UnpinBpfMap(struct bpf_object* obj, const char* pin_dir, const char* map_nam
  * 
  * @return The map FD or -1 on error.
  */
-int GetMapPinFd(const char* pin_dir, const char* map_name)
+int get_map_pin_fd(const char* pin_dir, const char* map_name)
 {
     char full_path[255];
     snprintf(full_path, sizeof(full_path), "%s/%s", pin_dir, map_name);
