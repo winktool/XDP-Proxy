@@ -23,6 +23,12 @@ jobs:
       run: sudo apt install -y libconfig-dev 
     - name: Install LLVM
       run: sudo apt install -y llvm
+    - name: Install LibXDP Depedencies
+      run: sudo apt install -y libpcap-dev m4 gcc-multilib linux-tools-$(uname -r)
+    - name: Build LibXDP.
+      run: make libxdp
+    - name: Install LibXDP.
+      run: sudo make libxdp_install
     - name: Make project
       run: make
     - name: Install project
@@ -31,4 +37,4 @@ jobs:
       uses: actions/upload-artifact@master
       with:
         name: build-output
-        path: build/xdpfwd
+        path: build/loader/xdpfwd

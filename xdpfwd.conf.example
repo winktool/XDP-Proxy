@@ -1,5 +1,20 @@
-interface = "ens18";
+verbose = 5;
+log_file = "/var/log/xdpfw.log";
+interface = "enp1s0";
+pin_maps = true;
+update_time = 0;
+no_stats = false;
+stats_per_second = false;
+stdout_update_time = 1000;
 
 forwarding = (
-
+    {
+        enabled = true;
+        log = true;
+        bind_ip = "10.50.0.112";
+        bind_port = 40;
+        protocol = "tcp";
+        dst_ip = "10.50.0.104";
+        dst_port = 22;
+    }
 );
