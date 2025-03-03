@@ -11,10 +11,10 @@ forwarding = (
     {
         enabled = true;
         log = true;
-        bind_ip = "10.50.0.112";
+        bind_ip = "10.3.0.2";
         bind_port = 40;
         protocol = "tcp";
-        dst_ip = "10.50.0.104";
+        dst_ip = "10.3.0.3";
         dst_port = 22;
     }
 );
