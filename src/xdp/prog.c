@@ -335,3 +335,5 @@ no_rule:;
 }
 
 char _license[] SEC("license") = "GPL";
+
+__uint(xsk_prog_version, XDP_DISPATCHER_VERSION) SEC(XDP_METADATA_SECTION);
