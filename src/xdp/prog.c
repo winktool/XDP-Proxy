@@ -78,9 +78,6 @@ int xdp_prog_main(struct xdp_md *ctx)
     struct tcphdr *tcph = NULL;
     struct icmphdr *icmph = NULL;
 
-    u16 src_port;
-    u16 dst_port = 0;
-
     switch (iph->protocol)
     {
         case IPPROTO_TCP:
@@ -120,8 +117,8 @@ int xdp_prog_main(struct xdp_md *ctx)
             break;
     }
 
-    src_port = (tcph) ? tcph->source : (udph) ? udph->source : 0;
-    dst_port = (tcph) ? tcph->dest : (udph) ? udph->dest : 0;
+    u16 src_port = (tcph) ? tcph->source : (udph) ? udph->source : 0;
+    u16 dst_port = (tcph) ? tcph->dest : (udph) ? udph->dest : 0;
 
     // Construct forward key.
     fwd_rule_key_t rule_key = {0};
