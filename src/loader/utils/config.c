@@ -765,18 +765,25 @@ void print_config(config__t* cfg)
 
     printf("Rules\n");
 
-    for (int i = 0; i < MAX_FWD_RULES; i++)
+    if (cfg->rules_cnt > 0)
     {
-        fwd_rule_cfg_t* rule = &cfg->rules[i];
-
-        if (!rule->set)
+        for (int i = 0; i < cfg->rules_cnt; i++)
         {
-            break;
+            fwd_rule_cfg_t* rule = &cfg->rules[i];
+
+            if (!rule || !rule->set)
+            {
+                continue;
+            }
+    
+            print_fwd_rule(rule, i + 1);
+    
+            printf("\n\n");
         }
-
-        print_fwd_rule(rule, i + 1);
-
-        printf("\n\n");
+    }
+    else
+    {
+        printf("\t- None\n");
     }
 }
 
