@@ -117,7 +117,7 @@ Additionally, there are command line overrides for base config options you may i
 | ---- | ------- | ----------- |
 | -v, --verbose | `-v 3` | Overrides the config's verbose value. |
 | --log-file | `--log-file ./test.log` | Overrides the config's log file value. |
-| -i, --interface | `-i enp1s0` | Overrides the config's interface value. |
+| -i, --interface | `-i enp1s0` | Overrides the config's first interface value. |
 | -p, --pin-maps | `-p 0` | Overrides the config's pin maps value. |
 | -u, --update-time | `-u 30` | Overrides the config's update time value. |
 | -n, --no-stats | `-n 1` | Overrides the config's no stats value. |
@@ -135,31 +135,18 @@ The [`libconfig`](https://hyperrealm.github.io/libconfig/libconfig_manual.html) 
 
 Here are more details on the layout of the runtime configuration.
 
-### Data Types
-The following table quickly explains the data types used within the configuration documentation below (known data types which are not used within the configuration below will **not** be listed).
-
-| Name | Size (Bytes) | Description |
-| ---- | ---- | ----------- |
-| bool | 1 | A simple `true` or `false` field. |
-| byte | 1 | A number from `0` to `255`. |
-| string | N/A | An array of characters with no known size (values should be within quotes, `""`). |
-| uint | 4 | A number from `0` to `4294967295`. |
-| ulong | 8 | A number from `0` to `18446744073709551615 `. |
-| ushort | 2 | A number from `0` to `65535`. |
-| NULL | N/A | No address/value; Empty or 0. |
-
 ### Main
 | Name | Type | Default | Description |
 | ---- | ---- | ------- | ----------- |
 | verbose | int | `2` | The verbose level for logging (0 - 5 supported so far). |
 | log_file | string | `/var/log/xdpfwd.log` | The log file location. If the string is empty (`""`), the log file is disabled. |
-| interface | string | `NULL` | The network interface name to attach the XDP program to (usually retrieved with `ip a` or `ifconfig`). |
+| interface | string \| list of strings | `NULL` | The network interface(s) to attach the XDP program to (usually retrieved with `ip a` or `ifconfig`). |
 | pin_maps | bool | `true` | Pins main BPF maps to `/sys/fs/bpf/xdpfwd/[map_name]` on the file system. |
 | update_time | int | `0` | How often to update the config and forwarding rules from the file system in seconds (< 1 disables). |
 | no_stats | bool | `false` | Whether to enable or disable packet counters. Disabling packet counters will improve performance, but result in less visibility on what the proxy is doing. |
 | stats_per_second | bool | `false` | If true, packet counters and stats are calculated per second. `stdout_update_time` must be 1000 or less for this to work properly. |
 | stdout_update_time | int | `1000` | How often to update `stdout` when displaying packet counters in milliseconds. |
-| rules | Array of Forward Rule Object(s) | `NULL` | An array of forward rules. |
+| rules | list of forward rule objects | `()` | A list of forward rules. |
 
 ### Forward Rule Object
 | Name | Type | Default | Description |
