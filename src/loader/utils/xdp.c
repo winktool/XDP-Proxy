@@ -328,7 +328,7 @@ void update_fwd_rules(int map_fwd_rules, config__t *cfg)
     int ret;
 
     // Add a rule to the rules maps.
-    for (int i = 0; i < MAX_FWD_RULES; i++)
+    for (int i = 0; i < cfg->rules_cnt; i++)
     {
         fwd_rule_cfg_t* rule = &cfg->rules[i];
 

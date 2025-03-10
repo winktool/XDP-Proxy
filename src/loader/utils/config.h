@@ -19,11 +19,11 @@ struct fwd_rule_cfg
     int enabled;
     int log;
 
-    const char* bind_ip;
+    char* bind_ip;
     u16 bind_port;
-    const char* protocol;
+    char* protocol;
 
-    const char* dst_ip;
+    char* dst_ip;
     u16 dst_port;
 } typedef fwd_rule_cfg_t;
 
@@ -31,13 +31,16 @@ struct config
 {
     int verbose;
     char *log_file;
-    char *interface;
     unsigned int pin_maps : 1;
     int update_time;
     unsigned int no_stats : 1;
     unsigned int stats_per_second : 1;
     int stdout_update_time;
 
+    int interfaces_cnt;
+    char* interfaces[MAX_INTERFACES];
+
+    int rules_cnt;
     fwd_rule_cfg_t rules[MAX_FWD_RULES];
 } typedef config__t; // config_t is taken by libconfig -.-
 

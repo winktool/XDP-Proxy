@@ -17,3 +17,6 @@
 // If enabled, performs a FIB lookup on the route table when forwarding packets.
 // Otherwise, the ethernet source and destination MAC addresses are swapped.
 #define ENABLE_FIB_LOOKUPS
+
+// Maximum interfaces the firewall can attach to.
+#define MAX_INTERFACES 6

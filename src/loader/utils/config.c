@@ -207,25 +207,68 @@ int parse_cfg(config__t *cfg, const char* data, config_overrides_t* overrides)
         }
     }
 
-    // Get interface.
-    const char *interface;
+    // Get interface(s).
+    config_setting_t* interfaces = config_lookup(&conf, "interface");
 
-    if (config_lookup_string(&conf, "interface", &interface) == CONFIG_TRUE || (overrides && overrides->interface != NULL))
+    if (interfaces)
     {
-        // We must free previous value to prevent memory leak.
-        if (cfg->interface != NULL)
+        if (config_setting_is_list(interfaces))
         {
-            free(cfg->interface);
-            cfg->interface = NULL;
-        }
+            for (int i = 0; i < config_setting_length(interfaces); i++)
+            {
+                if (i >= MAX_INTERFACES)
+                {
+                    break;
+                }
 
-        if (overrides && overrides->interface != NULL)
-        {
-            cfg->interface = strdup(overrides->interface);
+                const char* interface = config_setting_get_string_elem(interfaces, i);
+
+                if (!interface)
+                {
+                    continue;
+                }
+
+                if (cfg->interfaces[i])
+                {
+                    free(cfg->interfaces[i]);
+                    cfg->interfaces[i] = NULL;
+                }
+
+                if (i == 0 && overrides && overrides->interface)
+                {
+                    cfg->interfaces[i] = strdup(overrides->interface);
+                }
+                else
+                {
+                    cfg->interfaces[i] = strdup(interface);
+                }
+
+                cfg->interfaces_cnt++;
+            }
         }
         else
         {
-            cfg->interface = strdup(interface);
+            const char* interface;
+
+            if (config_lookup_string(&conf, "interface", &interface) == CONFIG_TRUE)
+            {
+                if (cfg->interfaces[0])
+                {
+                    free(cfg->interfaces[0]);
+                    cfg->interfaces[0] = NULL;
+                }
+
+                if (overrides && overrides->interface)
+                {
+                    cfg->interfaces[0] = strdup(overrides->interface);
+                }
+                else
+                {
+                    cfg->interfaces[0] = strdup(interface);
+                }
+
+                cfg->interfaces_cnt = 1;
+            }
         }
     }
 
@@ -322,6 +365,9 @@ int parse_cfg(config__t *cfg, const char* data, config_overrides_t* overrides)
                 continue;
             }
 
+            rule->set = 1;
+            cfg->rules_cnt++;
+
             // Enabled.
             int enabled;
 
@@ -398,8 +444,6 @@ int parse_cfg(config__t *cfg, const char* data, config_overrides_t* overrides)
             {
                 rule->dst_port = dst_port;
             }
-
-            rule->set = 1;
         }
     }
 
@@ -437,11 +481,36 @@ int save_cfg(config__t* cfg, const char* file_path)
         config_setting_set_string(setting, cfg->log_file);
     }
 
-    // Add interface.
-    if (cfg->interface)
+    // Add interface(s).
+    if (cfg->interfaces_cnt > 0)
     {
-        setting = config_setting_add(root, "interface", CONFIG_TYPE_STRING);
-        config_setting_set_string(setting, cfg->interface);
+        if (cfg->interfaces_cnt > 1)
+        {
+            setting = config_setting_add(root, "interfaces", CONFIG_TYPE_LIST);
+
+            for (int i = 0; i < cfg->interfaces_cnt; i++)
+            {
+                const char* interface = cfg->interfaces[i];
+
+                if (!interface)
+                {
+                    continue;
+                }
+
+                config_setting_t* setting_interface = config_setting_add(setting, NULL, CONFIG_TYPE_STRING);
+                config_setting_set_string(setting_interface, interface);
+            }
+        }
+        else
+        {
+            const char* interface = cfg->interfaces[0];
+
+            if (interface)
+            {
+                setting = config_setting_add(root, "interfaces", CONFIG_TYPE_STRING);
+                config_setting_set_string(setting, interface);
+            }
+        }
     }
 
     // Add pin maps.
@@ -592,11 +661,27 @@ void set_cfg_defaults(config__t* cfg)
     cfg->verbose = 2;
     cfg->log_file = strdup("/var/log/xdpfwd.log");
     cfg->update_time = 0;
-    cfg->interface = NULL;
     cfg->pin_maps = 1;
     cfg->no_stats = 0;
     cfg->stats_per_second = 0;
     cfg->stdout_update_time = 1000;
+
+    cfg->interfaces_cnt = 0;
+
+    for (int i = 0; i < MAX_INTERFACES; i++)
+    {
+        char* interface = cfg->interfaces[i];
+
+        if (!interface)
+        {
+            continue;
+        }
+
+        free(interface);
+        cfg->interfaces[i] = NULL;
+    }
+
+    cfg->rules_cnt = 0;
 
     for (int i = 0; i < MAX_FWD_RULES; i++)
     {
@@ -637,14 +722,7 @@ void print_fwd_rule(fwd_rule_cfg_t* rule, int idx)
  */
 void print_config(config__t* cfg)
 {
-    char* interface = "N/A";
-
-    if (cfg->interface != NULL)
-    {
-        interface = cfg->interface;
-    }
-
-    char* log_file = "N/A";
+    const char* log_file = "N/A";
 
     if (cfg->log_file != NULL)
     {
@@ -656,27 +734,56 @@ void print_config(config__t* cfg)
     
     printf("\tVerbose => %d\n", cfg->verbose);
     printf("\tLog File => %s\n", log_file);
-    printf("\tInterface Name => %s\n", interface);
     printf("\tPin BPF Maps => %d\n", cfg->pin_maps);
     printf("\tUpdate Time => %d\n", cfg->update_time);
     printf("\tNo Stats => %d\n", cfg->no_stats);
     printf("\tStats Per Second => %d\n", cfg->stats_per_second);
     printf("\tStdout Update Time => %d\n\n", cfg->stdout_update_time);
 
-    printf("Rules\n");
-
-    for (int i = 0; i < MAX_FWD_RULES; i++)
+    printf("Interfaces\n");
+    
+    if (cfg->interfaces_cnt > 0)
     {
-        fwd_rule_cfg_t* rule = &cfg->rules[i];
-
-        if (!rule->set)
+        for (int i = 0; i < cfg->interfaces_cnt; i++)
         {
-            break;
+            const char* interface = cfg->interfaces[i];
+    
+            if (!interface)
+            {
+                continue;
+            }
+
+            printf("\t- %s\n", interface);
         }
 
-        print_fwd_rule(rule, i + 1);
+        printf("\n");
+    }
+    else
+    {
+        printf("\t- None\n\n");
+    }
 
-        printf("\n\n");
+    printf("Rules\n");
+
+    if (cfg->rules_cnt > 0)
+    {
+        for (int i = 0; i < cfg->rules_cnt; i++)
+        {
+            fwd_rule_cfg_t* rule = &cfg->rules[i];
+
+            if (!rule || !rule->set)
+            {
+                continue;
+            }
+    
+            print_fwd_rule(rule, i + 1);
+    
+            printf("\n\n");
+        }
+    }
+    else
+    {
+        printf("\t- None\n");
     }
 }
 
