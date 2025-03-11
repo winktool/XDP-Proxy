@@ -23,7 +23,7 @@ struct
 struct
 {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __uint(max_entries, (MAX_FWD_RULES * (MAX_PORT - (MIN_PORT - 1)) * 3));
+    __uint(max_entries, (MAX_BIND_IPS * MAX_PROTOCOLS) * MAX_PORTS);
     __type(key, conn_key_t);
     __type(value, conn_val_t);
 } map_connections SEC(".maps");
@@ -31,7 +31,7 @@ struct
 struct
 {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __uint(max_entries, (MAX_PORT - (MIN_PORT - 1)));
+    __uint(max_entries, MAX_BIND_IPS * MAX_PORTS);
     __type(key, port_key_t);
     __type(value, port_val_t);
 } map_ports SEC(".maps");

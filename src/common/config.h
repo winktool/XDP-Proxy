@@ -3,6 +3,11 @@
 // The maximum forward rules allowed.
 #define MAX_FWD_RULES 256
 
+// The maximum bind IPs used.
+// This is used to determine the size of the port map.
+// If you plan on binding multiple IP addresses, set this accordingly.
+#define MAX_BIND_IPS 1
+
 // The port range to use when selecting an available source port.
 // MAX_PORT - (MIN_PORT - 1) = The maximum amount of concurrent connections.
 #define MIN_PORT 500
