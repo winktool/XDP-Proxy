@@ -295,7 +295,7 @@ static __always_inline int fwd_packet(fwd_rule_val_t* rule, conn_val_t* conn, st
     {
         inc_pkt_stats(stats, STATS_TYPE_FORWARDED);
     }
-#ifdef ENABLE_RULE_LOGGING
+#ifdef STATS_COUNT_FWD_BACK
     else
     {
         inc_pkt_stats(stats, STATS_TYPE_FORWARDED);
