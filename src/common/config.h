@@ -25,3 +25,7 @@
 
 // Maximum interfaces the firewall can attach to.
 #define MAX_INTERFACES 6
+
+// Whether to recycle connections by last seen time.
+// Otherwise, connections are recycled by least amount of packets per nanosecond.
+#define RECYCLE_LAST_SEEN

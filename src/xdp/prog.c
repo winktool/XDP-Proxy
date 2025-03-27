@@ -218,17 +218,23 @@ int xdp_prog_main(struct xdp_md *ctx)
 
                         break;
                     }
-                    else
-                    {
-                        u64 pps = (port_lookup->last_seen - port_lookup->first_seen) / port_lookup->count;
 
-                        // We'll want to replace the most inactive connection.
-                        if (last > pps)
-                        {
-                            port_to_use = i;
-                            last = pps;
-                        }
+#ifdef RECYCLE_LAST_SEEN
+                    if (port_lookup->last_seen < last)
+                    {
+                        port_to_use = i;
+                        last = port_lookup->last_seen;
                     }
+#else
+                    u64 pps = (port_lookup->last_seen - port_lookup->first_seen) / port_lookup->count;
+
+                    // We'll want to replace the most inactive connection.
+                    if (last > pps)
+                    {
+                        port_to_use = i;
+                        last = pps;
+                    }
+#endif
                 }
             }
 
