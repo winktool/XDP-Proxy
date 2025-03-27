@@ -30,7 +30,7 @@ struct
 
 struct
 {
-    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, MAX_BIND_IPS * MAX_PORTS);
     __type(key, port_key_t);
     __type(value, port_val_t);

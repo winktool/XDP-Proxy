@@ -183,8 +183,8 @@ int xdp_prog_main(struct xdp_md *ctx)
                 return XDP_DROP;
             }
 
-            // Update connection stats.
 #ifdef CONNECTION_COUNTERS
+            // Update connection stats.
             conn->count++;
             conn->last_seen = now;
 #endif
@@ -248,6 +248,7 @@ int xdp_prog_main(struct xdp_md *ctx)
                 new_conn.src_port = src_port;
 
                 new_conn.bind_port = dst_port;
+
 #ifdef CONNECTION_COUNTERS
                 new_conn.count = 1;
                 new_conn.first_seen = now;
