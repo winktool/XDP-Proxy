@@ -254,7 +254,7 @@ static __always_inline int fwd_packet(fwd_rule_val_t* rule, conn_val_t* conn, st
 
     params.ifindex = ctx->ingress_ifindex;
 
-    int fwd = bpf_fib_lookup(ctx, &params, sizeof(params), BPF_FIB_LOOKUP_OUTPUT);
+    int fwd = bpf_fib_lookup(ctx, &params, sizeof(params), BPF_FIB_LOOKUP_DIRECT);
 
     if (fwd != BPF_FIB_LKUP_RET_SUCCESS)
     {
