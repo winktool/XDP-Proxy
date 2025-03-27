@@ -234,7 +234,7 @@ Offloading your XDP/BPF program to your system's NIC allows for the fastest pack
 At this time, I am not aware of any NIC manufacturers that will be able to offload this proxy completely to the NIC due to its BPF complexity.
 
 ### BPF Loop Support
-This proxy requires loop support with BPF. Older kernels will not support this feature and output an error such as the following.
+This proxy requires general loop support along with support for the [`bpf_loop()`](https://docs.ebpf.io/linux/helper-function/bpf_loop/) function. Older kernels will not support general loops and output an error such as the following.
 
 ```vim
 libbpf: load bpf program failed: Invalid argument
@@ -247,7 +247,9 @@ libbpf: failed to load program 'xdp_prog'
 libbpf: failed to load object '/etc/xdpfwd/xdp_prog.o'
 ```
 
-It looks like BPF loop [support](https://lwn.net/Articles/794934/) was added in kernel 5.3. Therefore, you'll need kernel 5.3 or above for this tool to run properly.
+It looks like general BPF loop [support](https://lwn.net/Articles/794934/) was added in kernel 5.3. Therefore, you'll need kernel 5.3 or above for this tool to run properly.
+
+With that said, the `bpf_loop()` function was added in kernel `6.2`. If you do not wish to upgrade your kernel to 6.2 or above, you will need to disable/comment out the `USE_NEW_LOOP` constant in the [`config.h`](./src/common/config.h) file. Please note if you do this, you will be **extremely limited** in how many concurrent source ports you can use (I recommend up to 21). Therefore, it is recommended you use `bpf_loop()` since you will have a much larger source port range!
 
 ### Forward Rule Logging
 This tool uses `bpf_ringbuf_reserve()` and `bpf_ringbuf_submit()` for logging a message when a new connection is created if the forward rule has logging enabled.
@@ -264,11 +266,6 @@ When loading the BPF/XDP program through LibXDP/LibBPF, logging is disabled unle
 If the tool fails to load or attach the XDP program, it is recommended you set `verbose` to 5 or above so LibXDP outputs specific warnings and errors.
 
 ## ❓ F.A.Q.
-### I receive BPF errors when increasing the `MIN_PORT` and `MAX_PORT` range. What can I do?
-Unfortunately, the amount of source ports available is limited by default due to limitations with the BPF verifier. By default, 21 source ports are available meaning only 21 connections are supported concurrently.
-
-In order to raise these limitations, you will need to build a custom Linux kernel. More details regarding this issue along with kernel patches are available [here](./patches).
-
 ### Why are binaries and configs named `xdpfwd`?
 Originally, this project was called **XDP Forwarding**. After I revamped the project, I decided to rename the main project to **XDP Proxy** since that suits the project more in my opinion. However, executable names like `xdpproxy` doesn't flow as well in my opinion, so I decided to keep binaries and config names/paths set to `xdpfwd`.
 
