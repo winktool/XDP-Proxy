@@ -29,3 +29,7 @@
 // Whether to recycle connections by last seen time.
 // Otherwise, connections are recycled by least amount of packets per nanosecond.
 #define RECYCLE_LAST_SEEN
+
+// Adds packet and last seen counters to connections.
+// This isn't used anywhere in the program right now which is why it's disabled by default.
+//#define CONNECTION_COUNTERS

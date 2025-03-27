@@ -184,8 +184,10 @@ int xdp_prog_main(struct xdp_md *ctx)
             }
 
             // Update connection stats.
+#ifdef CONNECTION_COUNTERS
             conn->count++;
             conn->last_seen = now;
+#endif
 
             // Update port stats.
             port_lookup->count++;
@@ -246,10 +248,11 @@ int xdp_prog_main(struct xdp_md *ctx)
                 new_conn.src_port = src_port;
 
                 new_conn.bind_port = dst_port;
-
+#ifdef CONNECTION_COUNTERS
                 new_conn.count = 1;
                 new_conn.first_seen = now;
                 new_conn.last_seen = now;
+#endif
                 
                 new_conn.port = htons(port_to_use);
 

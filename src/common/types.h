@@ -64,10 +64,12 @@ struct conn_val
 
     u16 port;
 
+#ifdef CONNECTION_COUNTERS
     u64 first_seen;
     u64 last_seen;
 
     u64 count;
+#endif
 } typedef conn_val_t;
 
 struct fwd_rule_log_event
