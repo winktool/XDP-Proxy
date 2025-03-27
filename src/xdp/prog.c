@@ -11,6 +11,7 @@
 #include <common/all.h>
 
 #include <xdp/utils/forward.h>
+#include <xdp/utils/port.h>
 #include <xdp/utils/logging.h>
 #include <xdp/utils/stats.h>
 #include <xdp/utils/helpers.h>
@@ -206,38 +207,23 @@ int xdp_prog_main(struct xdp_md *ctx)
 
             if (!icmph)
             {
-                u64 last = UINT64_MAX;
-                
+                port_ctx_t port_ctx = {0};
+                port_ctx.last = UINT64_MAX;
+                port_ctx.port_to_use = 0;
+                port_ctx.port_key = port_key;
+
+#ifdef USE_NEW_LOOP
+                bpf_loop(MAX_PORTS, choose_port, &port_ctx, 0);
+#else
                 for (u16 i = MIN_PORT; i <= MAX_PORT; i++)
                 {
-                    port_key.port = htons(i);
-
-                    port_val_t* port_lookup = bpf_map_lookup_elem(&map_ports, &port_key);
-
-                    if (!port_lookup)
+                    if (choose_port(i - MIN_PORT, &port_ctx))
                     {
-                        port_to_use = i;
-
                         break;
                     }
-
-#ifdef RECYCLE_LAST_SEEN
-                    if (port_lookup->last_seen < last)
-                    {
-                        port_to_use = i;
-                        last = port_lookup->last_seen;
-                    }
-#else
-                    u64 pps = (port_lookup->last_seen - port_lookup->first_seen) / port_lookup->count;
-
-                    // We'll want to replace the most inactive connection.
-                    if (last > pps)
-                    {
-                        port_to_use = i;
-                        last = pps;
-                    }
-#endif
                 }
+#endif
+                port_to_use = port_ctx.port_to_use;
             }
 
             if (port_to_use > 0 || icmph)
