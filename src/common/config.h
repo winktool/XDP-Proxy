@@ -11,7 +11,7 @@
 // The port range to use when selecting an available source port.
 // MAX_PORT - (MIN_PORT - 1) = The maximum amount of concurrent connections.
 #define MIN_PORT 500
-#define MAX_PORT 520
+#define MAX_PORT 900
 
 // Enables forward rule logging.
 #define ENABLE_RULE_LOGGING
@@ -33,3 +33,7 @@
 // Adds packet and last seen counters to connections.
 // This isn't used anywhere in the program right now which is why it's disabled by default.
 //#define CONNECTION_COUNTERS
+
+// If enabled, uses a newer bpf_loop() function when choosing a source port for a new connection.
+// This allows for a much higher source port range. However, it requires a more recent kernel.
+#define USE_NEW_LOOP

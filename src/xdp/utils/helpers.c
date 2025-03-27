@@ -1,7 +1,5 @@
 #include <xdp/utils/helpers.h>
 
-#include <xdp/utils/maps.h>
-
 /**
  * Swaps the Ethernet source and destination MAC addresses.
  * 
