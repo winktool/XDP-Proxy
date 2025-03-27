@@ -249,7 +249,7 @@ libbpf: failed to load object '/etc/xdpfwd/xdp_prog.o'
 
 It looks like general BPF loop [support](https://lwn.net/Articles/794934/) was added in kernel 5.3. Therefore, you'll need kernel 5.3 or above for this tool to run properly.
 
-With that said, the `bpf_loop()` function was added in kernel `6.2`. If you do not wish to upgrade your kernel to 6.2 or above, you will need to disable/comment out the `USE_NEW_LOOP` constant in the [`config.h`](./src/common/config.h) file. Please note if you do this, you will be **extremely limited** in how many concurrent source ports you can use (I recommend up to 21). Therefore, it is recommended you use `bpf_loop()` since you will have a much larger source port range!
+With that said, the `bpf_loop()` function was added in kernel `5.17`, but still requires `6.4` or above due to support for open coded iterators. If you do not wish to upgrade your kernel to 6.4 or above, you will need to disable/comment out the `USE_NEW_LOOP` constant in the [`config.h`](./src/common/config.h) file. Please note if you do this, you will be **extremely limited** in how many concurrent source ports you can use (I recommend up to 21). Therefore, it is recommended you use `bpf_loop()` since you will have a much larger source port range!
 
 ### Forward Rule Logging
 This tool uses `bpf_ringbuf_reserve()` and `bpf_ringbuf_submit()` for logging a message when a new connection is created if the forward rule has logging enabled.
