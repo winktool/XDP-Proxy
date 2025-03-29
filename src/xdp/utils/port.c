@@ -1,5 +1,13 @@
 #include <xdp/utils/port.h>
 
+/**
+ * Chooses the next available source port.
+ * 
+ * @param idx The loop index.
+ * @param data A pointer to a port context.
+ * 
+ * @return 1 to break the loop or 0 to continue the loop.
+ */
 static __always_inline long choose_port(u32 idx, void* data)
 {
     port_ctx_t* ctx = data;
