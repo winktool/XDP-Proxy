@@ -10,8 +10,8 @@
 
 // The port range to use when selecting an available source port.
 // MAX_PORT - (MIN_PORT - 1) = The maximum amount of concurrent connections.
-#define MIN_PORT 500
-#define MAX_PORT 900
+#define MIN_PORT 52000
+#define MAX_PORT 52500
 
 // Enables forward rule logging.
 #define ENABLE_RULE_LOGGING
