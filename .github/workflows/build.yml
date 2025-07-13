@@ -1,4 +1,4 @@
-name: Build
+name: Run
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  run:
     runs-on: ubuntu-latest
 
     steps:
@@ -32,3 +32,20 @@ jobs:
       run: make
     - name: Install project
       run: sudo make install
+    - name: Create basic config file.
+      run: echo 'verbose = 5; rules = ( { enabled = true; log = true; protocol = "tcp"; bind_ip = "10.1.0.2"; bind_port = 40; dst_ip = "10.1.0.3"; dst_port = 22; } );' > ./basic.conf
+    - name: Retrieve default network interface
+      run: echo "INTERFACE=$(ip route | awk '/default/ {print $5}')" >> $GITHUB_ENV
+    - name: Run XDP Proxy for 10 seconds using basic config and default network interface.
+      run: sudo xdpfwd -c ./basic.conf -t 10 -i ${{ env.INTERFACE }}
+
+    # 下面这两步是你需要加的👇
+    - name: 打包生成文件
+      run: tar czvf xdpfwd-artifacts.tar.gz build/ xdpfwd basic.conf || true
+      # 如果没有build目录，可只打包xdpfwd和basic.conf
+
+    - name: 上传打包产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: xdpfwd-artifacts
+        path: xdpfwd-artifacts.tar.gz
